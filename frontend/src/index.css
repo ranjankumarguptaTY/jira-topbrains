@@ -911,3 +911,54 @@ ul, ol {
 .jira-btn-danger:hover:not(:disabled) {
   background-color: var(--color-danger-700);
 }
+
+.jira-btn-subtle {
+  background-color: transparent;
+  color: var(--color-neutral-700);
+}
+
+.jira-btn-subtle:hover:not(:disabled) {
+  background-color: var(--color-neutral-100);
+  color: var(--color-neutral-900);
+}
+
+/* ============================================
+   DARK MODE COLORS
+   ============================================ */
+[data-theme='dark'] {
+  --color-neutral-0: #1D2125;
+  --color-neutral-50: #161A1D;
+  --color-neutral-100: #22272B;
+  --color-neutral-200: #2C333A;
+  --color-neutral-300: #454F59;
+  --color-neutral-400: #596773;
+  --color-neutral-500: #738496;
+  --color-neutral-600: #8C9BAB;
+  --color-neutral-700: #B6C2CF;
+  --color-neutral-800: #C7D1DB;
+  --color-neutral-900: #DEE4EA;
+  --color-neutral-1000: #F7F8F9;
+
+  --color-chat-bg: #161A1D;
+  --color-chat-sidebar: #0C1012;
+  --color-chat-sidebar-hover: #1D2125;
+  --color-chat-sidebar-active: #22272B;
+  --color-chat-sidebar-text: #8C9BAB;
+  --color-chat-sidebar-text-active: #DEE4EA;
+  --color-chat-bubble-own: #0C66E4;
+  --color-chat-bubble-own-text: #FFFFFF;
+  --color-chat-bubble-other: #22272B;
+  --color-chat-bubble-other-text: #DEE4EA;
+  --color-chat-input-bg: #1D2125;
+
+--color-notif-unread-bg: #28224B;
+  
+  --border: var(--color-neutral-200);
+
+  /* Sidebar Dark mode specific overrides */
+  --color-primary-50: rgba(38, 132, 255, 0.15);
+}
+
+[data-theme='dark'] .app-sidebar {
+  background: #0C1012;
+}

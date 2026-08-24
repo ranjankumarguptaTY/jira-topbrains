@@ -3,14 +3,41 @@ import { useAuth } from './AuthContext';
 import { useWebSocket } from './WebSocketContext';
 import { notificationsAPI } from '../services/api';
 
+const VAPID_PUBLIC_KEY = 'BIfCXTtqIKNyf-7tQ5JSVe3QopuTH6ZXAbegMYBTxHhRaw5qfIQoJrma7Z1PDB0fZ8T97iTiT_nhqWZnynUqRG0';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 const NotificationContext = createContext(null);
 
 export const NotificationProvider = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, currentUser } = useAuth();
   const ws = useWebSocket();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+// Helper to show desktop push notifications
+  const showDesktopNotification = useCallback((title, body) => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+      });
+    }
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -58,6 +85,28 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
+  const subscribeToPushNotifications = useCallback(async () => {
+    if (!isAuthenticated || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const subscribeOptions = {
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      };
+      const subscription = await reg.pushManager.subscribe(subscribeOptions);
+      await notificationsAPI.subscribePush(subscription);
+      console.log('Successfully registered for Web Push notifications');
+    } catch (err) {
+      console.warn('Push subscription failed', err);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && Notification.permission === 'granted' && localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
+      subscribeToPushNotifications();
+    }
+  }, [isAuthenticated, subscribeToPushNotifications]);
+
   // Fetch on mount and when auth changes
   useEffect(() => {
     if (isAuthenticated) {
@@ -82,9 +131,18 @@ export const NotificationProvider = ({ children }) => {
   // Listen for real-time notifications via WebSocket
   useEffect(() => {
     if (!ws) return;
+    
     const unsubCreate = ws.subscribe('NOTIFICATION_CREATED', (data) => {
       setNotifications((prev) => [data.notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
+
+      // Trigger desktop notification if allowed
+      if (localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
+        showDesktopNotification(
+          data.notification?.title || 'New Notification',
+          'New notification received'
+        );
+      }
     });
 
     const unsubCount = ws.subscribe('NOTIFICATION_COUNT_UPDATED', (data) => {
@@ -93,11 +151,29 @@ export const NotificationProvider = ({ children }) => {
       }
     });
 
+    const unsubMsg = ws.subscribe('CHAT_MESSAGE_CREATED', (data) => {
+      if (localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
+        const isOwn = data.message?.sender_id === currentUser?.id;
+        if (!isOwn) {
+          const pathSegments = window.location.pathname.split('/');
+          const isOnChatPage = pathSegments[1] === 'chat' && pathSegments[2] === data.conversation_id;
+          if (!isOnChatPage) {
+            const body = data.message?.type === 'file' ? 'Sent a file' : '1 new message';
+            showDesktopNotification(
+              data.message?.sender?.name || 'New Message',
+              body
+            );
+          }
+        }
+      }
+    });
+
     return () => {
       unsubCreate();
       unsubCount();
+      unsubMsg();
     };
-  }, [ws]);
+  }, [ws, currentUser, showDesktopNotification]);
 
   return (
     <NotificationContext.Provider

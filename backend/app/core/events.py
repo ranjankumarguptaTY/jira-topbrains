@@ -54,6 +54,34 @@ async def emit_event(event_type: str, payload: dict):
         logger.error(f"Error handling event {event_type}: {e}")
 
 
+import json
+import asyncio
+from pywebpush import webpush, WebPushException
+
+async def trigger_web_push(db, user_id: str, payload: dict):
+    cursor = db.push_subscriptions.find({"user_id": user_id})
+    subs = await cursor.to_list(None)
+    for sub in subs:
+        try:
+            await asyncio.to_thread(
+                webpush,
+                subscription_info={
+                    "endpoint": sub["endpoint"],
+                    "keys": {
+                        "p256dh": sub["keys"]["p256dh"],
+                        "auth": sub["keys"]["auth"]
+                    }
+                },
+                data=json.dumps(payload),
+                vapid_private_key="backend/private_key.pem",
+                vapid_claims={"sub": "mailto:admin@topbrains.com"}
+            )
+        except WebPushException as ex:
+            if ex.response and ex.response.status_code in [404, 410]:
+                await db.push_subscriptions.delete_one({"_id": sub["_id"]})
+        except Exception as e:
+            logger.debug(f"Web push dispatch failed: {e}")
+
 async def _create_notification(db, user_id: str, notif_type: str, title: str, body: str,
                                 entity_type: str = None, entity_id: str = None, metadata: dict = None):
     """Create a notification and broadcast via WebSocket."""
@@ -82,6 +110,26 @@ async def _create_notification(db, user_id: str, notif_type: str, title: str, bo
         })
     except Exception as e:
         logger.debug(f"WebSocket broadcast failed: {e}")
+
+    # Dispatch Background Web Push Notification
+    try:
+        push_body = "1 new message"
+        if notif_type == "chat_message":
+            if "uploaded a file" in body or "Sent a file" in body or (metadata and metadata.get("type") == "file"):
+                push_body = "Sent a file"
+        else:
+            push_body = "New notification received"
+
+        push_payload = {
+            "title": title,
+            "body": push_body,
+            "data": {
+                "url": f"/chat/{entity_id}" if notif_type == "chat_message" else "/my-work"
+            }
+        }
+        asyncio.create_task(trigger_web_push(db, user_id, push_payload))
+    except Exception as e:
+        logger.debug(f"Failed to dispatch web push task: {e}")
 
     return serialized
 

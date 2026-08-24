@@ -170,6 +170,7 @@ async def get_messages(
     conversation_id: str,
     limit: int = Query(50, le=100),
     before: str = Query(None),
+    after: str = Query(None),
     current_user=Depends(get_current_user),
     db=Depends(get_database)
 ):
@@ -186,8 +187,16 @@ async def get_messages(
         msg = await db.messages.find_one({"_id": ObjectId(before)})
         if msg:
             query["created_at"] = {"$lt": msg["created_at"]}
+    elif after and ObjectId.is_valid(after):
+        msg = await db.messages.find_one({"_id": ObjectId(after)})
+        if msg:
+            query["created_at"] = {"$gt": msg["created_at"]}
 
-    msgs = await db.messages.find(query).sort("created_at", 1).to_list(limit)
+    if after:
+        msgs = await db.messages.find(query).sort("created_at", 1).to_list(limit)
+    else:
+        msgs = await db.messages.find(query).sort("created_at", -1).to_list(limit)
+        msgs.reverse()
 
     result = []
     for msg in msgs:
@@ -374,3 +383,20 @@ async def remove_conversation_member(
         "conversation_id": conversation_id, "user_id": user_id
     })
     return {"status": "removed"}
+
+
+@router.delete("/{conversation_id}/messages")
+async def clear_conversation_messages(
+    conversation_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    # Verify membership
+    is_member = await db.conversation_members.find_one({
+        "conversation_id": conversation_id, "user_id": current_user["id"]
+    })
+    if not is_member:
+        raise HTTPException(status_code=403, detail="Not authorized to clear messages in this conversation")
+        
+    await db.messages.delete_many({"conversation_id": conversation_id})
+    return {"status": "cleared"}

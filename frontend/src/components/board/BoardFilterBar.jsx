@@ -52,7 +52,7 @@ export const BoardFilterBar = () => {
         <div style={{ position: 'relative', width: '200px' }}>
           <Search
             size={14}
-            color="#7A869A"
+            color="var(--color-neutral-400)"
             style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)' }}
           />
           <input
@@ -65,8 +65,9 @@ export const BoardFilterBar = () => {
               padding: '6px 8px 6px 28px',
               fontSize: '13px',
               borderRadius: '4px',
-              border: '1px solid var(--jira-border)',
-              backgroundColor: '#FAFBFC',
+              border: '1px solid var(--color-neutral-200)',
+              backgroundColor: 'var(--color-neutral-50)',
+              color: 'var(--color-neutral-900)',
               outline: 'none',
             }}
           />
@@ -83,7 +84,7 @@ export const BoardFilterBar = () => {
                 cursor: 'pointer',
               }}
             >
-              <X size={14} color="#7A869A" />
+              <X size={14} color="var(--color-neutral-400)" />
             </button>
           )}
         </div>
@@ -126,7 +127,7 @@ export const BoardFilterBar = () => {
           <button
             onClick={clearAllFilters}
             className="jira-btn jira-btn-ghost"
-            style={{ fontSize: '12px', padding: '4px 8px', color: '#0052CC' }}
+            style={{ fontSize: '12px', padding: '4px 8px', color: 'var(--color-primary-600)' }}
           >
             Clear all
           </button>
@@ -140,8 +141,8 @@ export const BoardFilterBar = () => {
             style={{
               fontSize: '12px',
               fontWeight: 600,
-              color: '#5E6C84',
-              backgroundColor: '#DEEBFF',
+              color: 'var(--color-primary-600)',
+              backgroundColor: 'var(--color-primary-50)',
               padding: '4px 10px',
               borderRadius: '4px',
             }}
@@ -155,9 +156,9 @@ export const BoardFilterBar = () => {
               setIsCompleteSprintOpen(true);
             }}
             className="jira-btn jira-btn-subtle"
-            style={{ fontSize: '12px', fontWeight: 600, color: '#006644', backgroundColor: '#E3FCEF' }}
+            style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-success-600)', backgroundColor: 'var(--color-success-50)' }}
           >
-            <CheckCircle size={15} color="#006644" />
+            <CheckCircle size={15} color="var(--color-success-600)" />
             <span>Complete sprint</span>
           </button>
         </div>

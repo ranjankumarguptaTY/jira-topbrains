@@ -254,7 +254,8 @@
 /* === SIDEBAR === */
 .app-sidebar {
   width: var(--sidebar-width);
-  background: var(--color-neutral-900);
+  background: var(--color-neutral-50);
+  border-right: 1px solid var(--color-neutral-200);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -281,7 +282,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: 8px 12px;
-  color: var(--color-chat-sidebar-text);
+  color: var(--color-neutral-700);
   font-size: var(--text-md);
   font-weight: var(--weight-medium);
   border-radius: var(--radius-md);
@@ -292,14 +293,14 @@
 }
 
 .sidebar-nav-item:hover {
-  background: var(--color-chat-sidebar-hover);
-  color: var(--color-chat-sidebar-text-active);
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-900);
   text-decoration: none;
 }
 
 .sidebar-nav-item.active {
-  background: var(--color-chat-sidebar-active);
-  color: var(--color-chat-sidebar-text-active);
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
 }
 
 .collapsed .sidebar-nav-item {
@@ -316,7 +317,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 0 var(--space-2);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--color-neutral-200);
   padding-top: var(--space-3);
 }
 
@@ -334,8 +335,8 @@
 }
 
 .sidebar-collapse-btn:hover {
-  background: var(--color-chat-sidebar-hover);
-  color: var(--color-neutral-300);
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-700);
 }
 
 .collapsed .sidebar-collapse-btn {
@@ -372,4 +373,30 @@
   .app-sidebar:not(.collapsed) {
     transform: translateX(0);
   }
+}
+
+/* PWA Navigation Controls */
+.app-pwa-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-4);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-neutral-200);
+}
+
+.pwa-nav-btn {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-neutral-600);
+  border-radius: var(--radius-md) !important;
+}
+
+.pwa-nav-btn:hover {
+  background: var(--color-neutral-100) !important;
+  color: var(--color-neutral-900) !important;
 }

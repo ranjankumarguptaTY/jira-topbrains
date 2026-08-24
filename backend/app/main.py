@@ -215,4 +215,9 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "topbrains-collaboration-platform"}
+    from datetime import datetime, timezone
+    return {
+        "status": "ok", 
+        "service": "topbrains-collaboration-platform",
+        "server_time": datetime.now(timezone.utc).isoformat()
+    }

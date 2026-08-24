@@ -135,6 +135,7 @@ export const conversationsAPI = {
   addMember: (conversationId, userId) => api.post(`/conversations/${conversationId}/members`, { user_id: userId }),
   removeMember: (conversationId, userId) => api.delete(`/conversations/${conversationId}/members/${userId}`),
   markRead: (conversationId) => api.post(`/conversations/${conversationId}/read`),
+  clearMessages: (conversationId) => api.delete(`/conversations/${conversationId}/messages`),
 };
 
 // =============================================
@@ -156,6 +157,7 @@ export const notificationsAPI = {
   markRead: (notifId) => api.patch(`/notifications/${notifId}/read`),
   markAllRead: () => api.post('/notifications/read-all'),
   getUnreadCount: () => api.get('/notifications/unread-count'),
+  subscribePush: (sub) => api.post('/notifications/subscribe', sub),
 };
 
 // =============================================

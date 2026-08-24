@@ -1,10 +1,55 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Monitor } from 'lucide-react';
 import './SettingsPage.css';
 
 const SettingsPage = () => {
   const { currentUser } = useAuth();
+  const { subscribeToPushNotifications } = useNotifications();
+  const [theme, setTheme] = React.useState(localStorage.getItem('jira-clone-theme') || 'light');
+  const [desktopNotifications, setDesktopNotifications] = React.useState(
+    localStorage.getItem('jira-clone-desktop-notifications') === 'true'
+  );
+
+  const handleDesktopNotificationsToggle = async (e) => {
+    const checked = e.target.checked;
+    setDesktopNotifications(checked);
+    localStorage.setItem('jira-clone-desktop-notifications', checked ? 'true' : 'false');
+
+    if (checked) {
+      if (!('Notification' in window)) {
+        alert('Desktop notifications are not supported in this browser.');
+        setDesktopNotifications(false);
+        localStorage.setItem('jira-clone-desktop-notifications', 'false');
+        return;
+      }
+
+      if (Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          alert('Permission denied for Desktop Notifications.');
+          setDesktopNotifications(false);
+          localStorage.setItem('jira-clone-desktop-notifications', 'false');
+        }
+      } else if (Notification.permission === 'denied') {
+        alert('Notification permission is blocked. Please enable it in your browser settings.');
+        setDesktopNotifications(false);
+        localStorage.setItem('jira-clone-desktop-notifications', 'false');
+      }
+    }
+  };
+
+  const handleThemeChange = (newTheme) => {
+    setTheme(newTheme);
+    localStorage.setItem('jira-clone-theme', newTheme);
+    if (newTheme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', systemTheme);
+    } else {
+      document.documentElement.setAttribute('data-theme', newTheme);
+    }
+  };
 
   return (
     <div className="settings-page">
@@ -103,7 +148,11 @@ const SettingsPage = () => {
                 <div className="settings-toggle-desc">Show browser push notifications</div>
               </div>
               <label className="toggle">
-                <input type="checkbox" />
+                <input
+                  type="checkbox"
+                  checked={desktopNotifications}
+                  onChange={handleDesktopNotificationsToggle}
+                />
                 <span className="toggle-slider" />
               </label>
             </div>
@@ -119,10 +168,14 @@ const SettingsPage = () => {
           <div className="settings-card-body">
             <div className="settings-form-group">
               <label className="input-label">Theme</label>
-              <select className="input-field">
-                <option>Light</option>
-                <option>Dark</option>
-                <option>System</option>
+              <select
+                className="input-field"
+                value={theme}
+                onChange={(e) => handleThemeChange(e.target.value)}
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
               </select>
             </div>
           </div>

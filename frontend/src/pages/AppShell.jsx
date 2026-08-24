@@ -19,6 +19,9 @@ import {
   WifiOff,
   Menu,
   X,
+  ArrowLeft,
+  ArrowRight,
+  RotateCw,
 } from 'lucide-react';
 import { NotificationPanel } from '../components/layout/NotificationPanel';
 import './AppShell.css';
@@ -77,6 +80,31 @@ const AppShell = () => {
               <FolderKanban size={18} color="#fff" />
             </div>
             <span className="app-logo-text">TopBrains</span>
+          </div>
+
+          {/* PWA navigation controls */}
+          <div className="app-pwa-nav-controls">
+            <button
+              className="btn btn-icon btn-ghost pwa-nav-btn"
+              title="Go back"
+              onClick={() => window.history.back()}
+            >
+              <ArrowLeft size={15} />
+            </button>
+            <button
+              className="btn btn-icon btn-ghost pwa-nav-btn"
+              title="Go forward"
+              onClick={() => window.history.forward()}
+            >
+              <ArrowRight size={15} />
+            </button>
+            <button
+              className="btn btn-icon btn-ghost pwa-nav-btn"
+              title="Refresh"
+              onClick={() => window.location.reload()}
+            >
+              <RotateCw size={13} />
+            </button>
           </div>
         </div>
 

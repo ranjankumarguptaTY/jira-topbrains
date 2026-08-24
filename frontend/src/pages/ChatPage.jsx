@@ -31,6 +31,16 @@ import './ChatPage.css';
 
 const CHUNK_SIZE = 1024 * 1024 * 4; // 4 MB chunk size
 
+const COMMON_EMOJIS = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+  '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+  '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸',
+  '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️',
+  '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡',
+  '👍', '👎', '👊', '✊', '✌️', '👌', '👋', '👏', '🙌', '🙏',
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💔', '✨'
+];
+
 const ChatPage = () => {
   const { conversationId } = useParams();
   const navigate = useNavigate();
@@ -42,6 +52,23 @@ const ChatPage = () => {
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [hasMoreBefore, setHasMoreBefore] = useState(true);
+  const [hasMoreAfter, setHasMoreAfter] = useState(false);
+  const [fetchingPage, setFetchingPage] = useState(false);
+  const chatMessagesRef = useRef(null);
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [searchedMemberUsers, setSearchedMemberUsers] = useState([]);
+  const [searchingMemberUsers, setSearchingMemberUsers] = useState(false);
+
+  const filteredMessages = messages.filter((msg) => {
+    if (!messageSearchQuery) return true;
+    return msg.content?.toLowerCase().includes(messageSearchQuery.toLowerCase());
+  });
   const [guestRequests, setGuestRequests] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showGuestRequests, setShowGuestRequests] = useState(false);
@@ -81,6 +108,81 @@ const ChatPage = () => {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const moreMenuRef = useRef(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+const handleEmojiClick = (emoji) => {
+    setNewMessage((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+      if (
+        showMoreMenu &&
+        moreMenuRef.current &&
+        !moreMenuRef.current.contains(event.target)
+      ) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker, showMoreMenu]);
+
+  useEffect(() => {
+    if (!memberSearchQuery.trim()) {
+      setSearchedMemberUsers([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setSearchingMemberUsers(true);
+        const res = await authAPI.searchUsers(memberSearchQuery.trim());
+        setSearchedMemberUsers(res.data || []);
+      } catch (err) {
+        console.error('Failed to search users', err);
+      } finally {
+        setSearchingMemberUsers(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [memberSearchQuery]);
+
+const handleClearChat = async () => {
+    try {
+      await conversationsAPI.clearMessages(conversationId);
+      setMessages([]);
+      setShowClearConfirm(false);
+    } catch (err) {
+      console.error("Failed to clear messages", err);
+      alert("Failed to clear messages");
+    }
+  };
+
+  const handleAddMember = async (user) => {
+    try {
+      await conversationsAPI.addMember(conversationId, user.id);
+      setShowAddMember(false);
+      setMemberSearchQuery('');
+      setSearchedMemberUsers([]);
+      const res = await conversationsAPI.get(conversationId);
+      setActiveConversation(res.data);
+      alert(`${user.name} added successfully!`);
+    } catch (err) {
+      console.error('Failed to add member', err);
+      alert('Failed to add member to conversation.');
+    }
+  };
 
   // Load conversations list (only active chatted conversations)
   const loadConversations = useCallback(async () => {
@@ -125,14 +227,27 @@ const ChatPage = () => {
     const loadMessages = async () => {
       try {
         setLoadingMessages(true);
+        setHasMoreBefore(true);
+        setHasMoreAfter(false);
         const [convoRes, msgsRes] = await Promise.all([
           conversationsAPI.get(conversationId),
-          conversationsAPI.getMessages(conversationId),
+          conversationsAPI.getMessages(conversationId, { limit: 50 }),
         ]);
         setActiveConversation(convoRes.data);
-        setMessages(msgsRes.data || []);
+        const msgs = msgsRes.data || [];
+        setMessages(msgs);
+        if (msgs.length < 50) {
+          setHasMoreBefore(false);
+        }
         conversationsAPI.markRead(conversationId).catch(() => {});
         clearConversationNotifications?.(conversationId);
+
+        // Scroll to bottom
+        setTimeout(() => {
+          if (chatMessagesRef.current) {
+            chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+          }
+        }, 50);
       } catch (err) {
         console.error('Failed to load messages', err);
         setMessages([]);
@@ -143,10 +258,74 @@ const ChatPage = () => {
     loadMessages();
   }, [conversationId, clearConversationNotifications]);
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const handleScroll = async () => {
+    const container = chatMessagesRef.current;
+    if (!container || fetchingPage) return;
+
+    // Scroll near the top -> Load older messages
+    if (container.scrollTop < 20 && hasMoreBefore && messages.length > 0) {
+      try {
+        setFetchingPage(true);
+        const beforeId = messages[0].id;
+        const previousScrollHeight = container.scrollHeight;
+        const previousScrollTop = container.scrollTop;
+
+        const res = await conversationsAPI.getMessages(conversationId, { before: beforeId, limit: 50 });
+        const olderMsgs = res.data || [];
+
+        if (olderMsgs.length < 50) {
+          setHasMoreBefore(false);
+        }
+
+        setMessages((prev) => {
+          const combined = [...olderMsgs, ...prev];
+          if (combined.length > 100) {
+            setHasMoreAfter(true);
+            return combined.slice(0, 100);
+          }
+          return combined;
+        });
+
+        setTimeout(() => {
+          container.scrollTop = container.scrollHeight - previousScrollHeight + previousScrollTop;
+        }, 0);
+      } catch (err) {
+        console.error('Failed to load older messages', err);
+      } finally {
+        setFetchingPage(false);
+      }
+    }
+
+    // Scroll near the bottom -> Load newer messages
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 20;
+    if (isNearBottom && hasMoreAfter && messages.length > 0) {
+      try {
+        setFetchingPage(true);
+        const afterId = messages[messages.length - 1].id;
+
+        const res = await conversationsAPI.getMessages(conversationId, { after: afterId, limit: 50 });
+        const newerMsgs = res.data || [];
+
+        if (newerMsgs.length < 50) {
+          setHasMoreAfter(false);
+        }
+
+        setHasMoreBefore(true);
+
+        setMessages((prev) => {
+          const combined = [...prev, ...newerMsgs];
+          if (combined.length > 100) {
+            return combined.slice(combined.length - 100);
+          }
+          return combined;
+        });
+      } catch (err) {
+        console.error('Failed to load newer messages', err);
+      } finally {
+        setFetchingPage(false);
+      }
+    }
+  };
 
   // WebSocket listeners
   useEffect(() => {
@@ -227,12 +406,13 @@ const ChatPage = () => {
     setNewMessage('');
 
     const tempId = `temp-${Date.now()}`;
+    const tempCreatedAt = new Date(Date.now() + (window.serverTimeOffset || 0)).toISOString();
     const tempMsg = {
       id: tempId,
       content,
       sender_id: currentUser.id,
       sender: { id: currentUser.id, name: currentUser.name, avatar_url: currentUser.avatar_url },
-      created_at: new Date().toISOString(),
+      created_at: tempCreatedAt,
       type: 'text',
       read_by: [currentUser.id],
       _pending: true,
@@ -277,7 +457,7 @@ const ChatPage = () => {
         });
       }
 
-      await fileTransfersAPI.complete(transferId);
+      await fileTransfersAPI.completeUpload(transferId);
       setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
@@ -398,6 +578,12 @@ const ChatPage = () => {
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'short' });
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const formatMessageBubbleTime = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatBytes = (bytes) => {
@@ -676,17 +862,74 @@ const ChatPage = () => {
                 )}
               </div>
               <div className="chat-header-actions">
-                <button className="btn btn-icon btn-ghost" title="Search in conversation">
-                  <Search size={16} />
-                </button>
-                <button className="btn btn-icon btn-ghost" title="More options">
-                  <MoreVertical size={16} />
-                </button>
+                {showMessageSearch ? (
+                  <div className="chat-message-search-input-wrapper">
+                    <input
+                      type="text"
+                      className="chat-message-search-input"
+                      placeholder="Search messages..."
+                      value={messageSearchQuery}
+                      onChange={(e) => setMessageSearchQuery(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      className="btn btn-icon btn-ghost btn-sm"
+                      onClick={() => {
+                        setShowMessageSearch(false);
+                        setMessageSearchQuery('');
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="btn btn-icon btn-ghost"
+                    title="Search in conversation"
+                    onClick={() => setShowMessageSearch(true)}
+                  >
+                    <Search size={16} />
+                  </button>
+                )}
+
+                <div className="chat-more-menu-container" ref={moreMenuRef}>
+                  <button
+                    className="btn btn-icon btn-ghost"
+                    title="More options"
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {showMoreMenu && (
+                    <div className="chat-dropdown-menu">
+                      {(activeConversation?.type === 'channel' || activeConversation?.type === 'group') && (
+                        <button
+                          className="chat-dropdown-item"
+                          onClick={() => {
+                            setShowAddMember(true);
+                            setShowMoreMenu(false);
+                          }}
+                        >
+                          Add Member
+                        </button>
+                      )}
+                      <button
+                        className="chat-dropdown-item chat-dropdown-item-danger"
+                        onClick={() => {
+                          setShowClearConfirm(true);
+                          setShowMoreMenu(false);
+                        }}
+                      >
+                        Clear Chat
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Messages */}
-            <div className="chat-messages">
+            <div className="chat-messages" ref={chatMessagesRef} onScroll={handleScroll}>
               {loadingMessages ? (
                 <div className="chat-messages-loading">
                   <div className="spinner" />
@@ -697,105 +940,142 @@ const ChatPage = () => {
                   <p>No messages yet. Say hello! 👋</p>
                 </div>
               ) : (
-                messages.map((msg, idx) => {
+                filteredMessages.map((msg, idx) => {
                   const isOwn = msg.sender_id === currentUser?.id;
                   const showAvatar =
                     idx === 0 || messages[idx - 1]?.sender_id !== msg.sender_id;
 
-                  // Render File Message
-                  if (msg.type === 'file' && msg.metadata) {
-                    return (
-                      <div key={msg.id} className={`chat-message ${isOwn ? 'own' : 'other'}`}>
-                        {!isOwn && showAvatar && (
-                          <div className="message-avatar">
-                            <div className="avatar avatar-sm">{msg.sender?.name?.[0] || '?'}</div>
-                          </div>
-                        )}
-                        <div className="message-content">
-                          {!isOwn && showAvatar && <div className="message-sender">{msg.sender?.name}</div>}
-                          <div className="chat-file-card">
-                            <div className="chat-file-icon">
-                              <FileText size={24} />
+                  const msgDate = new Date(msg.created_at);
+                  const prevMsg = idx > 0 ? filteredMessages[idx - 1] : null;
+                  const prevMsgDate = prevMsg ? new Date(prevMsg.created_at) : null;
+                  const isNewDay = !prevMsgDate || 
+                    msgDate.getDate() !== prevMsgDate.getDate() ||
+                    msgDate.getMonth() !== prevMsgDate.getMonth() ||
+                    msgDate.getFullYear() !== prevMsgDate.getFullYear();
+
+                  const getSeparatorText = (date) => {
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    if (date.toDateString() === today.toDateString()) return 'Today';
+                    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+                    return date.toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    });
+                  };
+
+                  const renderMessage = () => {
+                    // Render File Message
+                    if (msg.type === 'file' && msg.metadata) {
+                      return (
+                        <div key={msg.id} className={`chat-message ${isOwn ? 'own' : 'other'}`}>
+                          {!isOwn && showAvatar && (
+                            <div className="message-avatar">
+                              <div className="avatar avatar-sm">{msg.sender?.name?.[0] || '?'}</div>
                             </div>
-                            <div className="chat-file-details">
-                              <div className="chat-file-name truncate">{msg.metadata.filename}</div>
-                              <div className="chat-file-size">{formatBytes(msg.metadata.file_size_bytes)}</div>
+                          )}
+                          <div className="message-content">
+                            {!isOwn && showAvatar && <div className="message-sender">{msg.sender?.name}</div>}
+                            <div className="chat-file-card">
+                              <div className="chat-file-icon">
+                                <FileText size={24} />
+                              </div>
+                              <div className="chat-file-details">
+                                <div className="chat-file-name truncate">{msg.metadata.filename}</div>
+                                <div className="chat-file-size">{formatBytes(msg.metadata.file_size_bytes)}</div>
+                              </div>
+                              <button
+                                className="btn btn-primary btn-sm chat-file-download-btn"
+                                onClick={() => handleDownloadFile(msg.metadata.transfer_id, msg.metadata.filename)}
+                              >
+                                <Download size={14} />
+                                Download
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Render Ticket Notification Message
+                    if (msg.type === 'ticket_notification' && msg.metadata) {
+                      return (
+                        <div key={msg.id} className="chat-ticket-notification-wrapper">
+                          <div className="chat-ticket-card">
+                            <div className="chat-ticket-badge">
+                              <Sparkles size={13} />
+                              <span>Jira Notification</span>
+                            </div>
+                            <div className="chat-ticket-title">{msg.content}</div>
+                            <div className="chat-ticket-meta">
+                              <span className="badge badge-primary">{msg.metadata.issue_key}</span>
+                              <span>{msg.metadata.project_name}</span>
                             </div>
                             <button
-                              className="btn btn-primary btn-sm chat-file-download-btn"
-                              onClick={() => handleDownloadFile(msg.metadata.transfer_id, msg.metadata.filename)}
+                              className="btn btn-secondary btn-sm chat-ticket-btn"
+                              onClick={() => navigate('/my-work')}
                             >
-                              <Download size={14} />
-                              Download
+                              <ExternalLink size={13} />
+                              Open Ticket
                             </button>
                           </div>
                         </div>
-                      </div>
-                    );
-                  }
+                      );
+                    }
 
-                  // Render Ticket Notification Message
-                  if (msg.type === 'ticket_notification' && msg.metadata) {
+                    // Standard text message
                     return (
-                      <div key={msg.id} className="chat-ticket-notification-wrapper">
-                        <div className="chat-ticket-card">
-                          <div className="chat-ticket-badge">
-                            <Sparkles size={13} />
-                            <span>Jira Notification</span>
+                      <div
+                        key={msg.id}
+                        className={`chat-message ${isOwn ? 'own' : 'other'} ${msg._pending ? 'pending' : ''}`}
+                      >
+                        {!isOwn && showAvatar && (
+                          <div className="message-avatar">
+                            {msg.sender?.avatar_url ? (
+                              <img src={msg.sender.avatar_url} alt="" className="avatar avatar-sm" />
+                            ) : (
+                              <div className="avatar avatar-sm">{msg.sender?.name?.[0] || '?'}</div>
+                            )}
                           </div>
-                          <div className="chat-ticket-title">{msg.content}</div>
-                          <div className="chat-ticket-meta">
-                            <span className="badge badge-primary">{msg.metadata.issue_key}</span>
-                            <span>{msg.metadata.project_name}</span>
+                        )}
+                        <div className={`message-content ${!showAvatar && !isOwn ? 'no-avatar' : ''}`}>
+                          {!isOwn && showAvatar && (
+                            <div className="message-sender">{msg.sender?.name}</div>
+                          )}
+                          <div className="message-bubble">
+                            <span className="message-text">{msg.content}</span>
+                            <span className="message-time">
+                              {formatTime(msg.created_at)}
+                              {isOwn && (
+                                msg._pending ? (
+                                  <Clock size={12} title="Sending..." className="msg-status-icon pending" />
+                                ) : (msg.read_by && msg.read_by.some((uid) => uid !== currentUser?.id)) ? (
+                                  <CheckCheck size={14} title="Seen" className="msg-status-icon seen" />
+                                ) : (
+                                  <Check size={13} title="Sent" className="msg-status-icon sent" />
+                                )
+                              )}
+                            </span>
                           </div>
-                          <button
-                            className="btn btn-secondary btn-sm chat-ticket-btn"
-                            onClick={() => navigate('/my-work')}
-                          >
-                            <ExternalLink size={13} />
-                            Open Ticket
-                          </button>
                         </div>
                       </div>
                     );
-                  }
+                  };
 
-                  // Standard text message
                   return (
-                    <div
-                      key={msg.id}
-                      className={`chat-message ${isOwn ? 'own' : 'other'} ${msg._pending ? 'pending' : ''}`}
-                    >
-                      {!isOwn && showAvatar && (
-                        <div className="message-avatar">
-                          {msg.sender?.avatar_url ? (
-                            <img src={msg.sender.avatar_url} alt="" className="avatar avatar-sm" />
-                          ) : (
-                            <div className="avatar avatar-sm">{msg.sender?.name?.[0] || '?'}</div>
-                          )}
-                        </div>
-                      )}
-                      <div className={`message-content ${!showAvatar && !isOwn ? 'no-avatar' : ''}`}>
-                        {!isOwn && showAvatar && (
-                          <div className="message-sender">{msg.sender?.name}</div>
-                        )}
-                        <div className="message-bubble">
-                          <span className="message-text">{msg.content}</span>
-                          <span className="message-time">
-                            {formatTime(msg.created_at)}
-                            {isOwn && (
-                              msg._pending ? (
-                                <Clock size={12} title="Sending..." className="msg-status-icon pending" />
-                              ) : (msg.read_by && msg.read_by.some((uid) => uid !== currentUser?.id)) ? (
-                                <CheckCheck size={14} title="Seen" className="msg-status-icon seen" />
-                              ) : (
-                                <Check size={13} title="Sent" className="msg-status-icon sent" />
-                              )
-                            )}
+                    <React.Fragment key={msg.id || idx}>
+                      {isNewDay && (
+                        <div className="chat-date-separator">
+                          <span className="chat-date-separator-text">
+                            {getSeparatorText(msgDate)}
                           </span>
                         </div>
-                      </div>
-                    </div>
+                      )}
+                      {renderMessage()}
+                    </React.Fragment>
                   );
                 })
               )}
@@ -839,9 +1119,30 @@ const ChatPage = () => {
                   }}
                   rows={1}
                 />
-                <button className="btn btn-icon btn-ghost chat-input-btn" title="Emoji">
-                  <Smile size={18} />
-                </button>
+                <div className="chat-emoji-picker-container" ref={emojiPickerRef}>
+                  <button
+                    className="btn btn-icon btn-ghost chat-input-btn"
+                    title="Emoji"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  >
+                    <Smile size={18} />
+                  </button>
+                  {showEmojiPicker && (
+                    <div className="chat-emoji-picker">
+                      <div className="chat-emoji-grid">
+                        {COMMON_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            className="chat-emoji-btn"
+                            onClick={() => handleEmojiClick(emoji)}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button
                   className={`btn btn-primary chat-send-btn ${!newMessage.trim() ? 'disabled' : ''}`}
                   onClick={handleSendMessage}
@@ -852,6 +1153,85 @@ const ChatPage = () => {
               </div>
             </div>
           </>
+        )}
+
+        {showAddMember && (
+          <div className="chat-modal-overlay">
+            <div className="chat-modal-card">
+              <div className="chat-modal-header">
+                <h3>Add member to channel</h3>
+                <button
+                  className="btn btn-icon btn-ghost"
+                  onClick={() => {
+                    setShowAddMember(false);
+                    setMemberSearchQuery('');
+                    setSearchedMemberUsers([]);
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="chat-modal-body">
+                <div style={{ position: 'relative', marginBottom: '12px' }}>
+                  <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ paddingLeft: '28px' }}
+                    placeholder="Search users by name or email..."
+                    value={memberSearchQuery}
+                    onChange={(e) => setMemberSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                
+                <div className="chat-modal-results">
+                  {searchingMemberUsers ? (
+                    <div style={{ padding: '8px 0', fontSize: '12px', color: 'var(--color-neutral-500)' }}>Searching...</div>
+                  ) : memberSearchQuery.trim() && searchedMemberUsers.length === 0 ? (
+                    <div style={{ padding: '8px 0', fontSize: '12px', color: 'var(--color-neutral-500)' }}>No users found</div>
+                  ) : (
+                    searchedMemberUsers.map((user) => (
+                      <div key={user.id} className="chat-modal-result-item" onClick={() => handleAddMember(user)}>
+                        <div className="avatar avatar-sm">
+                          {user.name?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600 }}>{user.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>{user.email}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+{showClearConfirm && (
+          <div className="chat-modal-overlay">
+            <div className="chat-modal-card" style={{ width: '360px' }}>
+              <div className="chat-modal-header">
+                <h3>Clear Chat History</h3>
+                <button className="btn btn-icon btn-ghost" onClick={() => setShowClearConfirm(false)}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="chat-modal-body" style={{ textAlign: 'center', padding: '24px 20px' }}>
+                <p style={{ fontSize: '14px', color: 'var(--color-neutral-800)', marginBottom: '20px' }}>
+                  Are you sure you want to clear all message history in this conversation? This action cannot be undone.
+                </p>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                  <button className="btn btn-secondary" onClick={() => setShowClearConfirm(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-danger" onClick={handleClearChat}>
+                    Clear History
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

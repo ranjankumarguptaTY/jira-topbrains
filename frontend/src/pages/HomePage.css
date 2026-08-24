@@ -295,3 +295,9 @@
 .home-loading {
   padding: var(--space-4);
 }
+
+
+[data-theme='dark'] .home-hero-content {
+  background: linear-gradient(135deg, #1C2125 0%, #161A1D 50%, #2A1E4A 100%);
+  border: 1px solid var(--color-neutral-200);
+}

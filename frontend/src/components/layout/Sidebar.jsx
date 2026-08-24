@@ -29,8 +29,8 @@ export const Sidebar = () => {
     <aside
       style={{
         width: collapsed ? '64px' : '240px',
-        backgroundColor: '#FAFBFC',
-        borderRight: '1px solid var(--jira-border)',
+        backgroundColor: 'var(--color-neutral-50)',
+        borderRight: '1px solid var(--color-neutral-200)',
         height: 'calc(100vh - 56px)',
         display: 'flex',
         flexDirection: 'column',
@@ -51,7 +51,7 @@ export const Sidebar = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            borderBottom: '1px solid #EBECF0',
+            borderBottom: '1px solid var(--color-neutral-200)',
           }}
         >
           <img
@@ -64,7 +64,7 @@ export const Sidebar = () => {
               width: '32px',
               height: '32px',
               borderRadius: '4px',
-              backgroundColor: '#DEEBFF',
+              backgroundColor: 'var(--color-primary-100)',
               flexShrink: 0,
             }}
           />
@@ -74,7 +74,7 @@ export const Sidebar = () => {
                 style={{
                   fontSize: '14px',
                   fontWeight: 700,
-                  color: '#172B4D',
+                  color: 'var(--color-neutral-900)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -83,7 +83,7 @@ export const Sidebar = () => {
               >
                 {currentProject?.name || 'Jira Project'}
               </div>
-              <div style={{ fontSize: '11px', color: '#5E6C84' }}>
+              <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>
                 {currentProject?.category || 'Software project'}
               </div>
             </div>
@@ -97,7 +97,7 @@ export const Sidebar = () => {
               style={{
                 fontSize: '11px',
                 fontWeight: 700,
-                color: '#5E6C84',
+                color: 'var(--color-neutral-500)',
                 textTransform: 'uppercase',
                 padding: '4px 8px 8px 8px',
                 letterSpacing: '0.04em',
@@ -125,21 +125,21 @@ export const Sidebar = () => {
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     borderRadius: '4px',
                     border: 'none',
-                    backgroundColor: isActive ? '#E9F2FF' : 'transparent',
-                    color: isActive ? '#0052CC' : '#42526E',
+                    backgroundColor: isActive ? 'var(--color-primary-50)' : 'transparent',
+                    color: isActive ? 'var(--color-primary-600)' : 'var(--color-neutral-700)',
                     fontWeight: isActive ? 600 : 500,
                     fontSize: '13px',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = '#EBECF0';
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'var(--color-neutral-100)';
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
                   }}
                 >
-                  <Icon size={18} color={isActive ? '#0052CC' : '#5E6C84'} />
+                  <Icon size={18} color={isActive ? 'var(--color-primary-500)' : 'var(--color-neutral-500)'} />
                   {!collapsed && <span>{item.label}</span>}
                 </button>
               );
@@ -149,7 +149,7 @@ export const Sidebar = () => {
       </div>
 
       {/* Bottom Section */}
-      <div style={{ padding: '12px 8px', borderTop: '1px solid #EBECF0' }}>
+      <div style={{ padding: '12px 8px', borderTop: '1px solid var(--color-neutral-200)' }}>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="jira-btn jira-btn-ghost"
@@ -158,7 +158,7 @@ export const Sidebar = () => {
             justifyContent: collapsed ? 'center' : 'space-between',
             padding: '8px 12px',
             fontSize: '13px',
-            color: '#5E6C84',
+            color: 'var(--color-neutral-500)',
           }}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >

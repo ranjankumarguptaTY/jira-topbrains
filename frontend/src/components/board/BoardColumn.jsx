@@ -43,12 +43,12 @@ export const BoardColumn = ({ column, issues }) => {
       style={{
         width: '280px',
         minWidth: '280px',
-        backgroundColor: '#F4F5F7',
+        backgroundColor: 'var(--color-neutral-50)',
         borderRadius: '6px',
         display: 'flex',
         flexDirection: 'column',
         maxHeight: 'calc(100vh - 190px)',
-        border: '1px solid #EBECF0',
+        border: '1px solid var(--color-neutral-200)',
       }}
     >
       {/* Column Header */}
@@ -65,7 +65,7 @@ export const BoardColumn = ({ column, issues }) => {
             style={{
               fontSize: '12px',
               fontWeight: 700,
-              color: '#5E6C84',
+              color: 'var(--color-neutral-500)',
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
             }}
@@ -76,8 +76,8 @@ export const BoardColumn = ({ column, issues }) => {
             style={{
               fontSize: '11px',
               fontWeight: 700,
-              color: '#42526E',
-              backgroundColor: 'rgba(9,30,66,0.08)',
+              color: 'var(--color-neutral-700)',
+              backgroundColor: 'var(--color-neutral-200)',
               padding: '1px 6px',
               borderRadius: '10px',
             }}
@@ -90,7 +90,7 @@ export const BoardColumn = ({ column, issues }) => {
           className="jira-btn-ghost"
           style={{ padding: '4px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
         >
-          <MoreHorizontal size={16} color="#5E6C84" />
+          <MoreHorizontal size={16} color="var(--color-neutral-500)" />
         </button>
       </div>
 
@@ -105,7 +105,7 @@ export const BoardColumn = ({ column, issues }) => {
               flex: 1,
               overflowY: 'auto',
               minHeight: '120px',
-              backgroundColor: snapshot.isDraggingOver ? '#E9F2FF' : 'transparent',
+              backgroundColor: snapshot.isDraggingOver ? 'var(--color-primary-50)' : 'transparent',
               transition: 'background-color 0.2s ease',
               borderRadius: '4px',
             }}
@@ -147,7 +147,7 @@ export const BoardColumn = ({ column, issues }) => {
                     padding: '8px',
                     fontSize: '13px',
                     borderRadius: '4px',
-                    border: '2px solid #4C9AFF',
+                    border: '2px solid var(--color-primary-400)',
                     outline: 'none',
                     resize: 'none',
                     boxShadow: 'var(--shadow-sm)',
@@ -181,7 +181,7 @@ export const BoardColumn = ({ column, issues }) => {
                   justifyContent: 'flex-start',
                   padding: '6px 8px',
                   fontSize: '12px',
-                  color: '#5E6C84',
+                  color: 'var(--color-neutral-500)',
                   marginTop: '4px',
                   borderRadius: '4px',
                 }}

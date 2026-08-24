@@ -143,14 +143,14 @@ export const KanbanBoard = () => {
       {/* Board Title Header */}
       <div style={{ paddingTop: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-          <span style={{ fontSize: '13px', color: '#5E6C84', fontWeight: 500 }}>
+          <span style={{ fontSize: '13px', color: 'var(--color-neutral-500)', fontWeight: 500 }}>
             Projects / {currentProject?.name} /
           </span>
-          <span style={{ fontSize: '13px', color: '#172B4D', fontWeight: 600 }}>
+          <span style={{ fontSize: '13px', color: 'var(--color-neutral-900)', fontWeight: 600 }}>
             {activeSprint ? activeSprint.name : 'Kanban Board'}
           </span>
         </div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#172B4D', margin: 0 }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-neutral-900)', margin: 0 }}>
           {activeSprint ? `${currentProject?.key || 'JIRA'} Board` : `${currentProject?.name} Board`}
         </h1>
       </div>
@@ -162,8 +162,8 @@ export const KanbanBoard = () => {
       {!activeSprint && issues.length === 0 && !loading && (
         <div
           style={{
-            backgroundColor: '#FAFBFC',
-            border: '2px dashed #DFE1E6',
+            backgroundColor: 'var(--color-neutral-50)',
+            border: '2px dashed var(--color-neutral-200)',
             borderRadius: '8px',
             padding: '32px',
             textAlign: 'center',
@@ -171,10 +171,10 @@ export const KanbanBoard = () => {
           }}
         >
           <Layers size={36} color="#0052CC" style={{ margin: '0 auto 12px auto' }} />
-          <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#172B4D', marginBottom: '6px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-neutral-900)', marginBottom: '6px' }}>
             No active sprint found for this project
           </h3>
-          <p style={{ fontSize: '13px', color: '#5E6C84', maxWidth: '400px', margin: '0 auto 16px auto' }}>
+          <p style={{ fontSize: '13px', color: 'var(--color-neutral-500)', maxWidth: '400px', margin: '0 auto 16px auto' }}>
             Head over to the Backlog to start a sprint or create backlog issues to populate your board.
           </p>
           <button

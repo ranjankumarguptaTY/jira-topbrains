@@ -19,9 +19,9 @@ export const IssueCard = ({ issue, isDragging }) => {
         padding: '10px 12px',
         marginBottom: '8px',
         cursor: 'pointer',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: 'var(--color-neutral-0)',
         boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
-        border: isDragging ? '1.5px solid #0052CC' : '1px solid #EBECF0',
+        border: isDragging ? '1.5px solid var(--color-primary-600)' : '1px solid var(--color-neutral-200)',
         borderRadius: '4px',
         transform: isDragging ? 'rotate(1.5deg)' : 'none',
         transition: 'all 0.15s ease',
@@ -35,8 +35,8 @@ export const IssueCard = ({ issue, isDragging }) => {
             style={{
               fontSize: '10px',
               fontWeight: 700,
-              backgroundColor: '#EAE6FF',
-              color: '#5243AA',
+              backgroundColor: 'var(--color-purple-50)',
+              color: 'var(--color-purple-600)',
               padding: '2px 6px',
               borderRadius: '3px',
               textTransform: 'uppercase',
@@ -53,7 +53,7 @@ export const IssueCard = ({ issue, isDragging }) => {
         style={{
           fontSize: '13px',
           fontWeight: 500,
-          color: '#172B4D',
+          color: 'var(--color-neutral-900)',
           lineHeight: '1.4',
           marginBottom: '10px',
           wordBreak: 'break-word',
@@ -70,14 +70,14 @@ export const IssueCard = ({ issue, isDragging }) => {
             alignItems: 'center',
             gap: '4px',
             fontSize: '11px',
-            color: '#5E6C84',
-            backgroundColor: '#F4F5F7',
+            color: 'var(--color-neutral-500)',
+            backgroundColor: 'var(--color-neutral-100)',
             padding: '2px 6px',
             borderRadius: '3px',
             marginBottom: '8px',
           }}
         >
-          <CheckCircle2 size={12} color={subtasks.completed === subtasks.total ? '#36B37E' : '#5E6C84'} />
+          <CheckCircle2 size={12} color={subtasks.completed === subtasks.total ? 'var(--color-success-500)' : 'var(--color-neutral-500)'} />
           <span>
             {subtasks.completed}/{subtasks.total}
           </span>
@@ -100,7 +100,7 @@ export const IssueCard = ({ issue, isDragging }) => {
             style={{
               fontSize: '12px',
               fontWeight: 600,
-              color: '#5E6C84',
+              color: 'var(--color-neutral-500)',
               letterSpacing: '0.01em',
             }}
           >
@@ -108,7 +108,7 @@ export const IssueCard = ({ issue, isDragging }) => {
           </span>
           <PriorityBadge priority={issue.priority} size={14} />
           {issue.comments_count > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '11px', color: '#7A869A' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '11px', color: 'var(--color-neutral-500)' }}>
               <MessageSquare size={12} />
               <span>{issue.comments_count}</span>
             </div>
@@ -122,8 +122,8 @@ export const IssueCard = ({ issue, isDragging }) => {
               style={{
                 fontSize: '11px',
                 fontWeight: 700,
-                backgroundColor: '#DFE1E6',
-                color: '#42526E',
+                backgroundColor: 'var(--color-neutral-200)',
+                color: 'var(--color-neutral-700)',
                 width: '20px',
                 height: '20px',
                 borderRadius: '50%',
