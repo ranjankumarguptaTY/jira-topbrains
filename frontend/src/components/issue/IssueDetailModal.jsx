@@ -305,6 +305,9 @@ export const IssueDetailModal = () => {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '8px',
+          boxShadow: 'var(--shadow-overlay)',
         }}
       >
         {/* Modal Top Bar */}
@@ -363,9 +366,9 @@ export const IssueDetailModal = () => {
         </div>
 
         {/* Modal Body: 2 Columns */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
           {/* Left Main Content (65%) */}
-          <div style={{ flex: '0 0 65%', padding: '24px', overflowY: 'auto', borderRight: '1px solid #DFE1E6' }}>
+          <div style={{ flex: '0 0 65%', padding: '24px', overflowY: 'auto', borderRight: '1px solid #DFE1E6', backgroundColor: '#FFFFFF' }}>
             {/* Summary Title */}
             <input
               type="text"

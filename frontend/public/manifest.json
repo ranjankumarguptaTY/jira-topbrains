@@ -1,0 +1,20 @@
+{
+  "name": "TopBrains Collaboration Platform",
+  "short_name": "TopBrains",
+  "description": "Unified Chat + Project Management Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1D2125",
+  "theme_color": "#0C66E4",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "screenshots": []
+}

@@ -1,18 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authApi } from '../api/auth';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext(null);
 
+const TOKEN_KEY = 'jira_token';
+
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('jira_token') || '');
+  const [token, setToken] = useState(localStorage.getItem(TOKEN_KEY) || '');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchUsers = async () => {
     try {
-      const data = await authApi.getUsers();
-      setUsers(data);
+      const res = await authAPI.listUsers();
+      setUsers(res.data);
     } catch (err) {
       console.error('Failed to load team users', err);
     }
@@ -20,14 +22,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('jira_token');
+      const storedToken = localStorage.getItem(TOKEN_KEY);
       if (storedToken) {
         try {
-          const user = await authApi.getMe();
-          setCurrentUser(user);
+          const res = await authAPI.getMe();
+          setCurrentUser(res.data);
         } catch (err) {
           console.warn('Session expired or invalid token:', err);
-          localStorage.removeItem('jira_token');
+          localStorage.removeItem(TOKEN_KEY);
           setToken('');
           setCurrentUser(null);
         }
@@ -40,8 +42,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    const data = await authApi.login(email, password);
-    localStorage.setItem('jira_token', data.access_token);
+    const res = await authAPI.login({ email, password });
+    const data = res.data;
+    localStorage.setItem(TOKEN_KEY, data.access_token);
     setToken(data.access_token);
     setCurrentUser(data.user);
     await fetchUsers();
@@ -49,8 +52,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (userData) => {
-    const data = await authApi.register(userData);
-    localStorage.setItem('jira_token', data.access_token);
+    const res = await authAPI.register(userData);
+    const data = res.data;
+    localStorage.setItem(TOKEN_KEY, data.access_token);
     setToken(data.access_token);
     setCurrentUser(data.user);
     await fetchUsers();
@@ -58,7 +62,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('jira_token');
+    localStorage.removeItem(TOKEN_KEY);
     setToken('');
     setCurrentUser(null);
   };

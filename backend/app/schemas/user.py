@@ -6,7 +6,7 @@ class UserBase(BaseModel):
     email: EmailStr
     name: str = Field(..., min_length=1, max_length=100)
     avatar_url: Optional[str] = Field(None, max_length=500)
-    role: str = Field("member", pattern="^(admin|member|pm|qa)$")
+    role: str = Field("member", pattern="^(admin|team_head|member|pm|qa)$")
     is_active: bool = True
 
 class UserCreate(UserBase):

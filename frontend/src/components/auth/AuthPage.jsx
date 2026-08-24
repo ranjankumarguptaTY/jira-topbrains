@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
 import { TopBrainsLogo } from '../common/TopBrainsLogo';
 import { Avatar } from '../common/Avatar';
+import './AuthPage.css';
 
 const DEMO_ACCOUNTS = [
   {
@@ -12,11 +13,12 @@ const DEMO_ACCOUNTS = [
     role: 'Master Administrator',
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=TopBrainsAdminMaster',
     badgeColor: '#6554C0',
+    isAdmin: true,
   },
   {
     name: 'Alex Morgan',
     email: 'alex.morgan@topbrains.com',
-    role: 'Tech Lead / Admin',
+    role: 'Engineering Lead / Team Head',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     badgeColor: '#0052CC',
   },
@@ -37,7 +39,7 @@ const DEMO_ACCOUNTS = [
   {
     name: 'Emily Watson',
     email: 'emily.watson@topbrains.com',
-    role: 'Product Manager',
+    role: 'Product Manager / Team Head',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
     badgeColor: '#4C9AFF',
   },
@@ -114,68 +116,27 @@ export const AuthPage = () => {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        backgroundColor: '#FAFBFC',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-        fontFamily: 'Inter, sans-serif',
-      }}
-    >
-      {/* TopBrains Jira Brand Header */}
-      <div style={{ marginBottom: '28px' }}>
+    <div className="auth-wrapper">
+      {/* TopBrains Brand Header */}
+      <div className="auth-header">
         <TopBrainsLogo size={42} showText={true} />
       </div>
 
       {/* Main Auth Card */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '460px',
-          backgroundColor: '#FFFFFF',
-          borderRadius: '8px',
-          boxShadow: 'var(--shadow-modal)',
-          border: '1px solid #DFE1E6',
-          overflow: 'hidden',
-        }}
-      >
+      <div className="auth-card">
         {/* Mode Switch Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #DFE1E6', backgroundColor: '#FAFBFC' }}>
+        <div className="auth-tabs">
           <button
+            type="button"
             onClick={() => setMode('login')}
-            style={{
-              flex: 1,
-              padding: '14px',
-              border: 'none',
-              background: mode === 'login' ? '#FFFFFF' : 'transparent',
-              borderBottom: mode === 'login' ? '2px solid #0052CC' : '2px solid transparent',
-              fontWeight: mode === 'login' ? 700 : 500,
-              color: mode === 'login' ? '#0052CC' : '#5E6C84',
-              fontSize: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
+            className={`auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
           >
             Log in
           </button>
           <button
+            type="button"
             onClick={() => setMode('register')}
-            style={{
-              flex: 1,
-              padding: '14px',
-              border: 'none',
-              background: mode === 'register' ? '#FFFFFF' : 'transparent',
-              borderBottom: mode === 'register' ? '2px solid #0052CC' : '2px solid transparent',
-              fontWeight: mode === 'register' ? 700 : 500,
-              color: mode === 'register' ? '#0052CC' : '#5E6C84',
-              fontSize: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
+            className={`auth-tab-btn ${mode === 'register' ? 'active' : ''}`}
           >
             Create account
           </button>
@@ -183,56 +144,40 @@ export const AuthPage = () => {
 
         {/* Login Form */}
         {mode === 'login' ? (
-          <form onSubmit={handleLoginSubmit} style={{ padding: '28px' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#172B4D', margin: '0 0 6px 0' }}>
-                Log in to TopBrains Jira
-              </h2>
-              <p style={{ fontSize: '13px', color: '#5E6C84', margin: 0 }}>
-                Sign in with your TopBrains credentials or select a demo account below.
+          <form onSubmit={handleLoginSubmit} className="auth-form-body">
+            <div className="auth-title-block">
+              <h2 className="auth-title">Log in to TopBrains</h2>
+              <p className="auth-subtitle">
+                Sign in with your work email or click a 1-click demo account below.
               </p>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
-                  Email address
-                </label>
-                <div style={{ position: 'relative', marginTop: '6px' }}>
-                  <Mail
-                    size={16}
-                    color="#7A869A"
-                    style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }}
-                  />
+            <div className="auth-form-fields">
+              <div className="auth-input-group">
+                <label className="auth-input-label">Email address</label>
+                <div className="auth-input-wrapper">
+                  <Mail size={16} className="auth-input-icon" />
                   <input
                     type="email"
                     placeholder="name@topbrains.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="jira-input"
-                    style={{ paddingLeft: '34px', backgroundColor: '#FFFFFF' }}
+                    className="auth-input"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
-                  Password
-                </label>
-                <div style={{ position: 'relative', marginTop: '6px' }}>
-                  <Lock
-                    size={16}
-                    color="#7A869A"
-                    style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }}
-                  />
+              <div className="auth-input-group">
+                <label className="auth-input-label">Password</label>
+                <div className="auth-input-wrapper">
+                  <Lock size={16} className="auth-input-icon" />
                   <input
                     type="password"
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="jira-input"
-                    style={{ paddingLeft: '34px', backgroundColor: '#FFFFFF' }}
+                    className="auth-input"
                     required
                   />
                 </div>
@@ -241,64 +186,35 @@ export const AuthPage = () => {
               <button
                 type="submit"
                 disabled={isSubmitting || !email || !password}
-                className="jira-btn jira-btn-primary"
-                style={{ width: '100%', padding: '10px', fontSize: '14px', marginTop: '4px' }}
+                className="btn btn-primary auth-submit-btn"
               >
-                {isSubmitting ? 'Logging in...' : 'Log in'}
+                {isSubmitting ? 'Signing in...' : 'Sign In'}
               </button>
             </div>
 
             {/* Quick Demo Accounts */}
-            <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #EBECF0' }}>
-              <div
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: '#5E6C84',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  marginBottom: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Sparkles size={13} color="#0052CC" />
-                <span>1-Click Team Accounts</span>
+            <div className="auth-demo-section">
+              <div className="auth-demo-header">
+                <Sparkles size={14} color="var(--color-primary-500)" />
+                <span>1-Click Demo Accounts</span>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="auth-demo-list">
                 {DEMO_ACCOUNTS.map((demo) => (
                   <button
                     key={demo.email}
                     type="button"
                     onClick={() => handleQuickDemoLogin(demo)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 10px',
-                      borderRadius: '4px',
-                      border: demo.email === 'admin@topbrains.com' ? '1.5px solid #6554C0' : '1px solid #DFE1E6',
-                      backgroundColor: demo.email === 'admin@topbrains.com' ? '#F9F7FF' : '#FAFBFC',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#EBECF0')}
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor =
-                        demo.email === 'admin@topbrains.com' ? '#F9F7FF' : '#FAFBFC')
-                    }
+                    className={`auth-demo-btn ${demo.isAdmin ? 'admin' : ''}`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="auth-demo-info">
                       <Avatar user={{ name: demo.name }} size="sm" tooltip={false} />
                       <div>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#172B4D' }}>{demo.name}</div>
-                        <div style={{ fontSize: '10px', color: demo.badgeColor, fontWeight: 600 }}>{demo.role}</div>
+                        <div className="auth-demo-name">{demo.name}</div>
+                        <div className="auth-demo-role" style={{ color: demo.badgeColor }}>{demo.role}</div>
                       </div>
                     </div>
-                    <ArrowRight size={13} color="#0052CC" />
+                    <ArrowRight size={14} color="var(--color-primary-500)" />
                   </button>
                 ))}
               </div>
@@ -306,114 +222,84 @@ export const AuthPage = () => {
           </form>
         ) : (
           /* Register Form */
-          <form onSubmit={handleRegisterSubmit} style={{ padding: '28px' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#172B4D', margin: '0 0 6px 0' }}>
-                Join TopBrains Jira
-              </h2>
-              <p style={{ fontSize: '13px', color: '#5E6C84', margin: 0 }}>
-                Create your team member account to collaborate on projects and sprints.
+          <form onSubmit={handleRegisterSubmit} className="auth-form-body">
+            <div className="auth-title-block">
+              <h2 className="auth-title">Join TopBrains</h2>
+              <p className="auth-subtitle">
+                Create your team member account to collaborate on chat and projects.
               </p>
             </div>
 
             {/* Admin Policy Notice */}
-            <div
-              style={{
-                padding: '10px 12px',
-                backgroundColor: '#DEEBFF',
-                borderRadius: '4px',
-                border: '1px solid #B3D4FF',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                marginBottom: '16px',
-              }}
-            >
-              <Info size={16} color="#0052CC" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span style={{ fontSize: '12px', color: '#0747A6', lineHeight: '1.4' }}>
-                <strong>Admin Security Notice:</strong> Administrator accounts can only be created by existing
-                TopBrains Administrators from the admin settings portal.
+            <div className="auth-security-notice">
+              <Info size={16} color="var(--color-primary-600)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <span>
+                <strong>Admin Security Notice:</strong> Master Administrator accounts can only be created by existing
+                Administrators from the admin settings portal.
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
-                  Full Name <span style={{ color: '#FF5630' }}>*</span>
+            <div className="auth-form-fields">
+              <div className="auth-input-group">
+                <label className="auth-input-label">
+                  Full Name <span style={{ color: 'var(--color-danger-500)' }}>*</span>
                 </label>
-                <div style={{ position: 'relative', marginTop: '6px' }}>
-                  <User
-                    size={16}
-                    color="#7A869A"
-                    style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }}
-                  />
+                <div className="auth-input-wrapper">
+                  <User size={16} className="auth-input-icon" />
                   <input
                     type="text"
                     placeholder="e.g. Jane Doe"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="jira-input"
-                    style={{ paddingLeft: '34px', backgroundColor: '#FFFFFF' }}
+                    className="auth-input"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
-                  Work Email <span style={{ color: '#FF5630' }}>*</span>
+              <div className="auth-input-group">
+                <label className="auth-input-label">
+                  Work Email <span style={{ color: 'var(--color-danger-500)' }}>*</span>
                 </label>
-                <div style={{ position: 'relative', marginTop: '6px' }}>
-                  <Mail
-                    size={16}
-                    color="#7A869A"
-                    style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }}
-                  />
+                <div className="auth-input-wrapper">
+                  <Mail size={16} className="auth-input-icon" />
                   <input
                     type="email"
                     placeholder="name@topbrains.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="jira-input"
-                    style={{ paddingLeft: '34px', backgroundColor: '#FFFFFF' }}
+                    className="auth-input"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
-                  Password <span style={{ color: '#FF5630' }}>*</span>
+              <div className="auth-input-group">
+                <label className="auth-input-label">
+                  Password <span style={{ color: 'var(--color-danger-500)' }}>*</span>
                 </label>
-                <div style={{ position: 'relative', marginTop: '6px' }}>
-                  <Lock
-                    size={16}
-                    color="#7A869A"
-                    style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }}
-                  />
+                <div className="auth-input-wrapper">
+                  <Lock size={16} className="auth-input-icon" />
                   <input
                     type="password"
                     placeholder="At least 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="jira-input"
-                    style={{ paddingLeft: '34px', backgroundColor: '#FFFFFF' }}
+                    className="auth-input"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
-                  Team Role
-                </label>
+              <div className="auth-input-group">
+                <label className="auth-input-label">Team Role</label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="jira-input"
-                  style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
+                  className="auth-select"
                 >
                   <option value="member">Software Engineer / Developer</option>
+                  <option value="team_head">Team Head / Tech Lead</option>
                   <option value="pm">Product Manager</option>
                   <option value="qa">QA Engineer / Tester</option>
                 </select>
@@ -422,8 +308,7 @@ export const AuthPage = () => {
               <button
                 type="submit"
                 disabled={isSubmitting || !name || !email || !password}
-                className="jira-btn jira-btn-primary"
-                style={{ width: '100%', padding: '10px', fontSize: '14px', marginTop: '4px' }}
+                className="btn btn-primary auth-submit-btn"
               >
                 {isSubmitting ? 'Creating account...' : 'Create Account & Sign In'}
               </button>
@@ -432,9 +317,9 @@ export const AuthPage = () => {
         )}
       </div>
 
-      {/* Footer info */}
-      <div style={{ marginTop: '24px', fontSize: '12px', color: '#7A869A', textAlign: 'center' }}>
-        TopBrains Jira Platform · FastAPI (Python) & MongoDB Architecture
+      {/* Footer */}
+      <div className="auth-footer">
+        TopBrains Collaboration Platform · Unified Chat & Agile Project Tracking
       </div>
     </div>
   );

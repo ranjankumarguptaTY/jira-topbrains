@@ -1,0 +1,215 @@
+/* ============================================
+   MY WORK PAGE
+   ============================================ */
+
+.mywork-page {
+  padding: var(--space-6);
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeInUp 0.3s ease;
+}
+
+.mywork-header {
+  margin-bottom: var(--space-6);
+}
+
+.mywork-header h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  color: var(--color-neutral-900);
+}
+
+.mywork-header p {
+  font-size: var(--text-md);
+  color: var(--color-neutral-500);
+  margin-top: var(--space-1);
+}
+
+/* Tabs */
+.mywork-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-neutral-200);
+  padding-bottom: 0;
+}
+
+.mywork-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--color-neutral-600);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all var(--transition-fast);
+}
+
+.mywork-tab:hover {
+  color: var(--color-neutral-800);
+}
+
+.mywork-tab.active {
+  color: var(--color-primary-600);
+  border-bottom-color: var(--color-primary-600);
+}
+
+.mywork-tab-count {
+  background: var(--color-neutral-100);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.mywork-tab.active .mywork-tab-count {
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+}
+
+
+/* Filters */
+.mywork-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.mywork-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 10px;
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  color: var(--color-neutral-400);
+  min-width: 200px;
+}
+
+.mywork-search input {
+  flex: 1;
+  background: transparent;
+  font-size: var(--text-sm);
+  color: var(--color-neutral-900);
+}
+
+.mywork-search input::placeholder {
+  color: var(--color-neutral-400);
+}
+
+.mywork-filter-select {
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+  color: var(--color-neutral-700);
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.mywork-filter-select:hover {
+  border-color: var(--color-neutral-300);
+}
+
+.mywork-filter-select:focus {
+  border-color: var(--color-primary-400);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-50);
+}
+
+
+/* Table */
+.mywork-table-container {
+  background: var(--color-neutral-0);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.mywork-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.mywork-table thead th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-neutral-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--color-neutral-50);
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.mywork-row {
+  transition: background var(--transition-fast);
+  cursor: pointer;
+}
+
+.mywork-row:hover {
+  background: var(--color-neutral-50);
+}
+
+.mywork-row td {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-md);
+  border-bottom: 1px solid var(--color-neutral-100);
+  white-space: nowrap;
+}
+
+.mywork-type {
+  width: 36px;
+  text-align: center;
+  font-size: var(--text-lg);
+}
+
+.mywork-key {
+  font-weight: var(--weight-semibold);
+  color: var(--color-primary-600);
+  min-width: 80px;
+}
+
+.mywork-summary {
+  max-width: 400px;
+  color: var(--color-neutral-800);
+}
+
+
+/* Empty / Loading */
+.mywork-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12) var(--space-4);
+  text-align: center;
+}
+
+.mywork-empty-icon {
+  color: var(--color-success-400);
+  margin-bottom: var(--space-4);
+}
+
+.mywork-empty h3 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--color-neutral-700);
+}
+
+.mywork-empty p {
+  font-size: var(--text-md);
+  color: var(--color-neutral-500);
+  margin-top: var(--space-1);
+}
+
+.mywork-loading {
+  padding: var(--space-4);
+}

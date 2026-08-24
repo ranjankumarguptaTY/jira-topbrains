@@ -1,9 +1,11 @@
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from bson import ObjectId
 from app.core.database import get_database, serialize_doc, serialize_docs
-from app.core.security import get_current_user_optional
+from app.core.security import get_current_user_optional, get_current_user
+from app.core.events import emit_event
 from app.schemas.issue import (
     IssueCreate,
     IssueUpdate,
@@ -12,7 +14,9 @@ from app.schemas.issue import (
     IssueResponse
 )
 
+logger = logging.getLogger("issues_api")
 router = APIRouter(prefix="/api/issues", tags=["issues"])
+
 
 async def populate_issue_relationships(issue_doc: dict, db):
     """Helper to populate assignee, reporter, epic, and subtask statistics"""
@@ -57,6 +61,50 @@ async def populate_issue_relationships(issue_doc: dict, db):
     serialized["comments_count"] = c_count
     
     return serialized
+
+
+@router.get("/my-work", response_model=list[IssueResponse])
+async def get_my_work(
+    view: str = Query("assigned", pattern="^(assigned|created|completed|all)$"),
+    project_id: Optional[str] = None,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    type: Optional[str] = None,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    """Retrieve work items consolidated for the current user across all projects."""
+    query = {}
+    if view == "assigned":
+        query["assignee_id"] = current_user["id"]
+        query["status"] = {"$ne": "done"}
+    elif view == "created":
+        query["reporter_id"] = current_user["id"]
+    elif view == "completed":
+        query["assignee_id"] = current_user["id"]
+        query["status"] = "done"
+    elif view == "all":
+        query["$or"] = [
+            {"assignee_id": current_user["id"]},
+            {"reporter_id": current_user["id"]}
+        ]
+
+    if project_id and project_id != "all":
+        query["project_id"] = project_id
+    if status and status != "all":
+        query["status"] = status
+    if priority and priority != "all":
+        query["priority"] = priority
+    if type and type != "all":
+        query["type"] = type
+
+    issues = await db.issues.find(query).sort("updated_at", -1).to_list(length=200)
+    result = []
+    for doc in issues:
+        populated = await populate_issue_relationships(doc, db)
+        result.append(populated)
+    return result
+
 
 @router.get("", response_model=list[IssueResponse])
 async def list_issues(
@@ -105,6 +153,7 @@ async def list_issues(
         populated = await populate_issue_relationships(doc, db)
         result.append(populated)
     return result
+
 
 @router.post("", response_model=IssueResponse)
 async def create_issue(
@@ -165,17 +214,34 @@ async def create_issue(
     
     res = await db.issues.insert_one(issue_doc)
     issue_doc["_id"] = res.inserted_id
+    issue_id_str = str(res.inserted_id)
     
     # Log activity
     await db.activity.insert_one({
-        "issue_id": str(res.inserted_id),
+        "issue_id": issue_id_str,
         "user_id": reporter,
         "action": "created_issue",
         "details": {"summary": issue_doc["summary"], "key": issue_key},
         "created_at": now
     })
+
+    # Emit domain event for assignment if assignee assigned
+    if issue_in.assignee_id:
+        try:
+            await emit_event("ISSUE_ASSIGNED", {
+                "issue_id": issue_id_str,
+                "issue_key": issue_key,
+                "issue_summary": issue_doc["summary"],
+                "project_name": project.get("name", "Project"),
+                "priority": issue_doc["priority"],
+                "assignee_id": issue_in.assignee_id,
+                "assigner_id": reporter
+            })
+        except Exception as e:
+            logger.warning(f"Failed to emit ISSUE_ASSIGNED: {e}")
     
     return await populate_issue_relationships(issue_doc, db)
+
 
 @router.get("/{issue_id_or_key}", response_model=IssueResponse)
 async def get_issue(issue_id_or_key: str, db=Depends(get_database)):
@@ -190,6 +256,7 @@ async def get_issue(issue_id_or_key: str, db=Depends(get_database)):
         raise HTTPException(status_code=404, detail="Issue not found")
         
     return await populate_issue_relationships(issue, db)
+
 
 @router.put("/{issue_id}", response_model=IssueResponse)
 async def update_issue(
@@ -223,9 +290,49 @@ async def update_issue(
                     "details": {"field": field, "old": str(old_val), "new": str(new_val)},
                     "created_at": datetime.now(timezone.utc)
                 })
+
+        # Check for assignment change
+        if "assignee_id" in data and data["assignee_id"] != old_issue.get("assignee_id"):
+            proj = await db.projects.find_one({"_id": ObjectId(old_issue["project_id"])})
+            try:
+                await emit_event("ISSUE_ASSIGNED", {
+                    "issue_id": issue_id,
+                    "issue_key": old_issue.get("key"),
+                    "issue_summary": old_issue.get("summary"),
+                    "project_name": proj.get("name", "Project") if proj else "Project",
+                    "priority": old_issue.get("priority", "medium"),
+                    "assignee_id": data["assignee_id"],
+                    "assigner_id": current_user["id"] if current_user else None
+                })
+            except Exception as e:
+                logger.warning(f"Failed to emit ISSUE_ASSIGNED: {e}")
+
+        # Check for status change
+        if "status" in data and data["status"] != old_issue.get("status"):
+            try:
+                await emit_event("ISSUE_STATUS_CHANGED", {
+                    "issue_id": issue_id,
+                    "issue_key": old_issue.get("key"),
+                    "issue_summary": old_issue.get("summary"),
+                    "old_status": old_issue.get("status"),
+                    "new_status": data["status"],
+                    "changed_by_id": current_user["id"] if current_user else None,
+                    "reporter_id": old_issue.get("reporter_id"),
+                    "assignee_id": old_issue.get("assignee_id")
+                })
+                if data["status"] == "done":
+                    await emit_event("ISSUE_COMPLETED", {
+                        "issue_id": issue_id,
+                        "issue_key": old_issue.get("key"),
+                        "completed_by_id": current_user["id"] if current_user else None,
+                        "reporter_id": old_issue.get("reporter_id")
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to emit status event: {e}")
                 
     updated_doc = await db.issues.find_one({"_id": ObjectId(issue_id)})
     return await populate_issue_relationships(updated_doc, db)
+
 
 @router.patch("/{issue_id}/status", response_model=IssueResponse)
 async def update_issue_status(
@@ -252,7 +359,7 @@ async def update_issue_status(
         
     await db.issues.update_one({"_id": ObjectId(issue_id)}, {"$set": update_data})
     
-    # Log status change activity
+    # Log status change activity and emit domain event
     if old_issue.get("status") != status_in.status:
         await db.activity.insert_one({
             "issue_id": issue_id,
@@ -261,9 +368,31 @@ async def update_issue_status(
             "details": {"old_status": old_issue.get("status"), "new_status": status_in.status},
             "created_at": datetime.now(timezone.utc)
         })
+
+        try:
+            await emit_event("ISSUE_STATUS_CHANGED", {
+                "issue_id": issue_id,
+                "issue_key": old_issue.get("key"),
+                "issue_summary": old_issue.get("summary"),
+                "old_status": old_issue.get("status"),
+                "new_status": status_in.status,
+                "changed_by_id": current_user["id"] if current_user else None,
+                "reporter_id": old_issue.get("reporter_id"),
+                "assignee_id": old_issue.get("assignee_id")
+            })
+            if status_in.status == "done":
+                await emit_event("ISSUE_COMPLETED", {
+                    "issue_id": issue_id,
+                    "issue_key": old_issue.get("key"),
+                    "completed_by_id": current_user["id"] if current_user else None,
+                    "reporter_id": old_issue.get("reporter_id")
+                })
+        except Exception as e:
+            logger.warning(f"Failed to emit status event: {e}")
         
     updated_doc = await db.issues.find_one({"_id": ObjectId(issue_id)})
     return await populate_issue_relationships(updated_doc, db)
+
 
 @router.patch("/{issue_id}/reorder")
 async def reorder_issue(issue_id: str, reorder_req: IssueReorderRequest, db=Depends(get_database)):
@@ -279,6 +408,7 @@ async def reorder_issue(issue_id: str, reorder_req: IssueReorderRequest, db=Depe
     await db.issues.update_one({"_id": ObjectId(issue_id)}, {"$set": update_data})
     return {"message": "Reordered successfully"}
 
+
 @router.get("/{issue_id}/subtasks", response_model=list[IssueResponse])
 async def get_subtasks(issue_id: str, db=Depends(get_database)):
     subtasks = await db.issues.find({"parent_id": issue_id}).sort("created_at", 1).to_list(length=100)
@@ -286,6 +416,7 @@ async def get_subtasks(issue_id: str, db=Depends(get_database)):
     for s in subtasks:
         result.append(await populate_issue_relationships(s, db))
     return result
+
 
 @router.delete("/{issue_id}")
 async def delete_issue(issue_id: str, db=Depends(get_database)):
