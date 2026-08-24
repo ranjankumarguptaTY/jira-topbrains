@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   X,
   Sparkles,
+  ArrowDown,
 } from 'lucide-react';
 import './ChatPage.css';
 
@@ -55,7 +56,17 @@ const ChatPage = () => {
   const [hasMoreBefore, setHasMoreBefore] = useState(true);
   const [hasMoreAfter, setHasMoreAfter] = useState(false);
   const [fetchingPage, setFetchingPage] = useState(false);
+  const [newIncomingCount, setNewIncomingCount] = useState(0);
   const chatMessagesRef = useRef(null);
+
+  const scrollToBottom = (behavior = 'auto') => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTo({
+        top: chatMessagesRef.current.scrollHeight,
+        behavior
+      });
+    }
+  };
   const [showMessageSearch, setShowMessageSearch] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -262,6 +273,12 @@ const handleClearChat = async () => {
     const container = chatMessagesRef.current;
     if (!container || fetchingPage) return;
 
+    // Clear unread badge if user reaches the bottom
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    if (isAtBottom) {
+      setNewIncomingCount(0);
+    }
+
     // Scroll near the top -> Load older messages
     if (container.scrollTop < 20 && hasMoreBefore && messages.length > 0) {
       try {
@@ -336,11 +353,30 @@ const handleClearChat = async () => {
 
       if (incomingConvoId === conversationId) {
         setMessages((prev) => {
-          const exists = prev.some((m) => m.id === incomingMsg.id);
-          if (exists) return prev;
-          return [...prev, incomingMsg];
+          if (prev.some((m) => m.id === incomingMsg.id)) return prev;
+          if (hasMoreAfter) return prev;
+          const combined = [...prev, incomingMsg];
+          if (combined.length > 100) {
+            setHasMoreBefore(true);
+            return combined.slice(combined.length - 100);
+          }
+          return combined;
         });
         conversationsAPI.markRead(conversationId).catch(() => {});
+
+        setTimeout(() => {
+          const container = chatMessagesRef.current;
+          if (container) {
+            const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+            const isOwn = incomingMsg.sender_id === currentUser?.id;
+            if (isNearBottom || isOwn) {
+              container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+              setNewIncomingCount(0);
+            } else {
+              setNewIncomingCount((prev) => prev + 1);
+            }
+          }
+        }, 50);
       }
 
       setConversations((prev) => {
@@ -424,6 +460,7 @@ const handleClearChat = async () => {
       const res = await conversationsAPI.sendMessage(conversationId, { content });
       const savedMsg = res.data;
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...savedMsg, _pending: false } : m)));
+      setTimeout(() => scrollToBottom('smooth'), 50);
     } catch (err) {
       console.error('Failed to send message', err);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -1081,6 +1118,20 @@ const handleClearChat = async () => {
               )}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Floating scroll to bottom badge */}
+            {newIncomingCount > 0 && (
+              <button 
+                className="chat-scroll-bottom-badge" 
+                onClick={() => {
+                  scrollToBottom('smooth');
+                  setNewIncomingCount(0);
+                }}
+              >
+                <ArrowDown size={14} />
+                <span>{newIncomingCount} {newIncomingCount === 1 ? 'new message' : 'new messages'}</span>
+              </button>
+            )}
 
             {/* Upload Progress Bar */}
             {uploadProgress && (

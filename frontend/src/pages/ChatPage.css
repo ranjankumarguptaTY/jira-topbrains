@@ -260,6 +260,7 @@
   flex-direction: column;
   min-width: 0;
   background: var(--color-chat-bg);
+  position: relative;
 }
 
 /* Welcome state */
@@ -860,4 +861,71 @@
   position: relative;
   z-index: 2;
   box-shadow: var(--shadow-sm);
+}
+
+/* Floating Scroll Bottom Badge */
+.chat-scroll-bottom-badge {
+  position: absolute;
+  bottom: 80px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-neutral-0);
+  color: var(--color-neutral-800);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  z-index: 10;
+  animation: bounceIn 0.3s ease;
+  transition: all var(--transition-base);
+}
+
+.chat-scroll-bottom-badge:hover {
+  background: var(--color-neutral-50);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+
+.chat-scroll-bottom-badge span {
+  font-weight: 600;
+  color: var(--color-neutral-800) !important;
+}
+
+[data-theme='dark'] .chat-scroll-bottom-badge {
+  background: var(--color-neutral-800);
+  color: var(--color-neutral-100);
+  border-color: var(--color-neutral-700);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .chat-scroll-bottom-badge:hover {
+  background: var(--color-neutral-700);
+}
+
+[data-theme='dark'] .chat-scroll-bottom-badge span {
+  color: var(--color-neutral-100) !important;
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0.3) translateY(20px);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05) translateY(-2px);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(0.9) translateY(0);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }

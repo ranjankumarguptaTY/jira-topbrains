@@ -39,10 +39,21 @@ async def close_mongo_connection():
         db_instance.client.close()
         logger.info("MongoDB connection closed.")
 
+from datetime import datetime
+
 def serialize_doc(doc: dict) -> dict:
-    """Helper to serialize MongoDB document ObjectId to string id"""
+    """Helper to serialize MongoDB document ObjectId and Datetime to standardized types"""
     if not doc:
         return None
+    for k, v in list(doc.items()):
+        if isinstance(v, ObjectId):
+            doc[k] = str(v)
+        elif isinstance(v, datetime):
+            doc[k] = v.isoformat() + "Z" if v.tzinfo is None else v.isoformat()
+        elif isinstance(v, dict):
+            doc[k] = serialize_doc(v)
+        elif isinstance(v, list):
+            doc[k] = [serialize_doc(item) if isinstance(item, dict) else (str(item) if isinstance(item, ObjectId) else item) for item in v]
     doc["id"] = str(doc.get("_id", ""))
     doc.pop("_id", None)
     return doc

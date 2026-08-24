@@ -18,9 +18,14 @@
   padding: var(--space-6) var(--space-8);
   background: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-500) 50%, var(--color-purple-600) 100%);
   border-radius: var(--radius-2xl);
-  color: var(--color-neutral-0);
+  color: #FFFFFF;
   position: relative;
   overflow: hidden;
+}
+
+.home-hero-content h1,
+.home-hero-content .home-subtitle {
+  color: #FFFFFF !important;
 }
 
 .home-hero-content::before {

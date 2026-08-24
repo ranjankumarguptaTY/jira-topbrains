@@ -198,7 +198,7 @@ async def _handle_issue_status_changed(db, payload: dict, now: datetime):
             user_id=uid,
             notif_type="issue_status_changed",
             title="Ticket Updated",
-            body=f"{issue_key}: {old_status.upper()} → {new_status.upper()} by {changer_name}",
+            body=f"{issue_key}: {old_status.upper()} -> {new_status.upper()} by {changer_name}",
             entity_type="issue",
             entity_id=payload.get("issue_id"),
             metadata={

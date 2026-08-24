@@ -133,15 +133,20 @@ export const NotificationProvider = ({ children }) => {
     if (!ws) return;
     
     const unsubCreate = ws.subscribe('NOTIFICATION_CREATED', (data) => {
-      setNotifications((prev) => [data.notification, ...prev]);
+      const notif = data.notification;
+      if (!notif) return;
+      
+      setNotifications((prev) => [notif, ...prev]);
       setUnreadCount((prev) => prev + 1);
 
-      // Trigger desktop notification if allowed
-      if (localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
-        showDesktopNotification(
-          data.notification?.title || 'New Notification',
-          'New notification received'
-        );
+      // Trigger desktop notification if allowed (skip chat messages to prevent duplicates)
+      if (notif.type !== 'chat_message') {
+        if (localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
+          showDesktopNotification(
+            notif.title || 'New Notification',
+            'New notification received'
+          );
+        }
       }
     });
 
