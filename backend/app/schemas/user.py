@@ -22,6 +22,7 @@ class UserStatusUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: str
+    is_external: Optional[bool] = False
     created_at: Optional[datetime] = None
 
 class TokenResponse(BaseModel):

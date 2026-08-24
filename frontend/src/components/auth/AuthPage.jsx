@@ -117,30 +117,32 @@ export const AuthPage = () => {
 
   return (
     <div className="auth-wrapper">
-      {/* TopBrains Brand Header */}
-      <div className="auth-header">
-        <TopBrainsLogo size={42} showText={true} />
-      </div>
-
-      {/* Main Auth Card */}
-      <div className="auth-card">
-        {/* Mode Switch Tabs */}
-        <div className="auth-tabs">
-          <button
-            type="button"
-            onClick={() => setMode('login')}
-            className={`auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
-          >
-            Log in
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('register')}
-            className={`auth-tab-btn ${mode === 'register' ? 'active' : ''}`}
-          >
-            Create account
-          </button>
+      <div className="auth-container">
+        {/* TopBrains Brand Header */}
+        <div className="auth-header">
+          <TopBrainsLogo size={44} showText={true} />
+          <div className="auth-header-tagline">Unified Team Chat & Agile Work Management</div>
         </div>
+
+        {/* Main Auth Card */}
+        <div className="auth-card">
+          {/* Mode Switch Tabs */}
+          <div className="auth-tabs">
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className={`auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
+            >
+              Log in
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('register')}
+              className={`auth-tab-btn ${mode === 'register' ? 'active' : ''}`}
+            >
+              Create account
+            </button>
+          </div>
 
         {/* Login Form */}
         {mode === 'login' ? (
@@ -317,9 +319,10 @@ export const AuthPage = () => {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="auth-footer">
-        TopBrains Collaboration Platform · Unified Chat & Agile Project Tracking
+        {/* Footer */}
+        <div className="auth-footer">
+          TopBrains Collaboration Platform · Unified Chat & Agile Project Tracking
+        </div>
       </div>
     </div>
   );

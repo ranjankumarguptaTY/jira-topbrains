@@ -93,4 +93,21 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    return {
+      currentUser: null,
+      users: [],
+      token: '',
+      isAuthenticated: false,
+      login: async () => {},
+      register: async () => {},
+      logout: () => {},
+      switchUser: () => {},
+      refreshUsers: async () => {},
+      loading: false,
+    };
+  }
+  return context;
+};

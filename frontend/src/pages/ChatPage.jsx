@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useNotifications } from '../context/NotificationContext';
-import { conversationsAPI, guestRequestsAPI, fileTransfersAPI } from '../services/api';
+import { authAPI, conversationsAPI, guestRequestsAPI, fileTransfersAPI } from '../services/api';
 import {
   MessageCircle,
   Plus,
@@ -34,39 +34,64 @@ const CHUNK_SIZE = 1024 * 1024 * 4; // 4 MB chunk size
 const ChatPage = () => {
   const { conversationId } = useParams();
   const navigate = useNavigate();
-  const { currentUser, users } = useAuth();
+  const { currentUser } = useAuth();
   const ws = useWebSocket();
   const { clearConversationNotifications } = useNotifications();
 
+  // State
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [guestRequests, setGuestRequests] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showGuestRequests, setShowGuestRequests] = useState(false);
-  const [guestRequests, setGuestRequests] = useState([]);
-  const [loadingConvos, setLoadingConvos] = useState(true);
+  const [newMessage, setNewMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [searchedUsers, setSearchedUsers] = useState([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [externalReqMessage, setExternalReqMessage] = useState('');
+  const [selectedExternalUser, setSelectedExternalUser] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null); // { filename, percentage }
+  const [loadingConvos, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
 
-  // File upload state
-  const [uploadProgress, setUploadProgress] = useState(null); // { filename, percentage, bytes, total }
-  const fileInputRef = useRef(null);
+  // Search registered users by name or email when typing in user picker
+  useEffect(() => {
+    if (!userSearchQuery.trim()) {
+      setSearchedUsers([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setSearchingUsers(true);
+        const res = await authAPI.searchUsers(userSearchQuery.trim());
+        setSearchedUsers(res.data || []);
+      } catch (err) {
+        console.error('Failed to search users', err);
+      } finally {
+        setSearchingUsers(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [userSearchQuery]);
+
+  // Refs
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Load conversations
+  // Load conversations list (only active chatted conversations)
   const loadConversations = useCallback(async () => {
     try {
-      setLoadingConvos(true);
+      setLoadingConversations(true);
       const res = await conversationsAPI.list();
       setConversations(res.data || []);
     } catch (err) {
-      console.debug('Conversations API not ready');
-      setConversations([]);
+      console.error('Failed to load conversations', err);
     } finally {
-      setLoadingConvos(false);
+      setLoadingConversations(false);
     }
   }, []);
 
@@ -93,7 +118,6 @@ const ChatPage = () => {
       return;
     }
 
-    // Immediately clear unread count for this conversation in the sidebar state
     setConversations((prev) =>
       prev.map((c) => (c.id === conversationId ? { ...c, unread_count: 0 } : c))
     );
@@ -133,12 +157,10 @@ const ChatPage = () => {
 
       if (incomingConvoId === conversationId) {
         setMessages((prev) => {
-          // If this message is from current user and already in list (e.g. temp), update it
           const exists = prev.some((m) => m.id === incomingMsg.id);
           if (exists) return prev;
           return [...prev, incomingMsg];
         });
-        // Automatically mark as read if conversation is open
         conversationsAPI.markRead(conversationId).catch(() => {});
       }
 
@@ -151,10 +173,8 @@ const ChatPage = () => {
             unread_count: (prev[index].unread_count || 0) + (incomingConvoId !== conversationId ? 1 : 0),
             updated_at: incomingMsg.created_at,
           };
-          // Move this active conversation to top of list
           return [updated, ...prev.filter((_, i) => i !== index)];
         } else {
-          // New conversation not yet in sidebar list, reload list from server
           loadConversations();
           return prev;
         }
@@ -223,7 +243,6 @@ const ChatPage = () => {
       setSendingMessage(true);
       const res = await conversationsAPI.sendMessage(conversationId, { content });
       const savedMsg = res.data;
-      // Replace optimistic tempMsg with server response (removes _pending)
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...savedMsg, _pending: false } : m)));
     } catch (err) {
       console.error('Failed to send message', err);
@@ -234,13 +253,11 @@ const ChatPage = () => {
     }
   };
 
-  // Resumable Chunked File Upload
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !conversationId) return;
 
     try {
-      // 1. Initiate transfer
       const initRes = await fileTransfersAPI.initiate({
         conversation_id: conversationId,
         filename: file.name,
@@ -249,7 +266,6 @@ const ChatPage = () => {
       });
       const transferId = initRes.data.transfer_id;
 
-      // 2. Upload chunks sequentially
       let offset = 0;
       while (offset < file.size) {
         const chunk = file.slice(offset, offset + CHUNK_SIZE);
@@ -257,21 +273,17 @@ const ChatPage = () => {
         offset += chunk.size;
         setUploadProgress({
           filename: file.name,
-          percentage: Math.round((offset / file.size) * 100),
-          uploadedBytes: offset,
-          totalBytes: file.size,
+          percentage: Math.min(100, Math.round((offset / file.size) * 100)),
         });
       }
 
-      // 3. Complete and verify SHA-256
-      await fileTransfersAPI.completeUpload(transferId);
+      await fileTransfersAPI.complete(transferId);
       setUploadProgress(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error('File upload failed', err);
-      alert('File upload failed. Please verify the server and try again.');
       setUploadProgress(null);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      alert('File upload failed. Please try again.');
     }
   };
 
@@ -281,19 +293,25 @@ const ChatPage = () => {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', filename || 'downloaded_file');
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      // Notify download complete for storage cleanup
-      await fileTransfersAPI.completeDownload(transferId).catch(() => {});
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Download failed', err);
       alert('File could not be downloaded. It may have expired.');
     }
   };
 
-  const handleStartDM = async (user) => {
+  const handleUserSelect = async (user) => {
+    if (user.is_external) {
+      // Out-of-org / guest flow: Prompt for initial message request (Google Chat style)
+      setSelectedExternalUser(user);
+      return;
+    }
+
+    // In-org member direct message
     try {
       const res = await conversationsAPI.create({
         type: 'direct',
@@ -306,8 +324,28 @@ const ChatPage = () => {
       });
       navigate(`/chat/${convo.id}`);
       setShowNewChat(false);
+      setUserSearchQuery('');
+      setSearchedUsers([]);
     } catch (err) {
       console.error('Failed to create conversation', err);
+    }
+  };
+
+  const handleSendExternalRequest = async () => {
+    if (!selectedExternalUser) return;
+    try {
+      await guestRequestsAPI.send({
+        target_user_id: selectedExternalUser.id,
+        message: externalReqMessage.trim() || 'Hi, I would like to connect with you.',
+      });
+      alert(`Chat request sent to ${selectedExternalUser.name}. They will be able to accept or decline.`);
+      setSelectedExternalUser(null);
+      setExternalReqMessage('');
+      setShowNewChat(false);
+      setUserSearchQuery('');
+      setSearchedUsers([]);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to send chat request');
     }
   };
 
@@ -472,29 +510,105 @@ const ChatPage = () => {
           </div>
         )}
 
-        {/* New Chat — User picker */}
+        {/* New Chat — Search & User picker */}
         {showNewChat && (
           <div className="new-chat-panel">
-            <div className="new-chat-title">Start a conversation</div>
-            {users
-              .filter((u) => u.id !== currentUser?.id)
-              .map((user) => (
-                <button
-                  key={user.id}
-                  className="new-chat-user"
-                  onClick={() => handleStartDM(user)}
-                >
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt="" className="avatar avatar-sm" />
-                  ) : (
-                    <div className="avatar avatar-sm">{user.name?.[0]}</div>
-                  )}
-                  <div className="new-chat-user-info">
-                    <div className="new-chat-user-name">{user.name}</div>
-                    <div className="new-chat-user-email">{user.email}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div className="new-chat-title" style={{ padding: 0 }}>Start a conversation</div>
+              <button className="btn btn-icon btn-ghost" onClick={() => { setShowNewChat(false); setSelectedExternalUser(null); }}>
+                <X size={14} />
+              </button>
+            </div>
+
+            {selectedExternalUser ? (
+              <div style={{ padding: '8px', background: '#FFFFFF', borderRadius: '6px', border: '1px solid #DFE1E6' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#172B4D', marginBottom: '4px' }}>
+                  Send Chat Request to {selectedExternalUser.name}
+                </div>
+                <div style={{ fontSize: '11px', color: '#5E6C84', marginBottom: '10px' }}>
+                  {selectedExternalUser.email} · <span className="badge badge-warning" style={{ fontSize: '10px' }}>Out of Organization</span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={externalReqMessage}
+                  onChange={(e) => setExternalReqMessage(e.target.value)}
+                  placeholder="Introduce yourself or state purpose..."
+                  className="jira-input"
+                  style={{ fontSize: '12px', marginBottom: '10px' }}
+                />
+                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setSelectedExternalUser(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={handleSendExternalRequest}
+                  >
+                    Send Request
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ position: 'relative', marginBottom: 8 }}>
+                  <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#7A869A' }} />
+                  <input
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '6px 8px 6px 26px',
+                      fontSize: '12px',
+                      borderRadius: '4px',
+                      border: '1px solid #DFE1E6',
+                      outline: 'none',
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                {searchingUsers ? (
+                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: '#7A869A' }}>
+                    Searching users...
                   </div>
-                </button>
-              ))}
+                ) : userSearchQuery.trim() && searchedUsers.length === 0 ? (
+                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: '#7A869A' }}>
+                    No users found matching "{userSearchQuery}"
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {searchedUsers.map((user) => (
+                      <button
+                        key={user.id}
+                        className="new-chat-user"
+                        onClick={() => handleUserSelect(user)}
+                        style={{ border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
+                      >
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="" className="avatar avatar-sm" />
+                        ) : (
+                          <div className="avatar avatar-sm">{user.name?.[0]}</div>
+                        )}
+                        <div className="new-chat-user-info" style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span className="new-chat-user-name" style={{ fontSize: '13px', fontWeight: 600 }}>{user.name}</span>
+                            {user.is_external && (
+                              <span className="badge badge-neutral" style={{ fontSize: '9px', padding: '1px 4px' }}>Guest</span>
+                            )}
+                          </div>
+                          <div className="new-chat-user-email" style={{ fontSize: '11px', color: '#7A869A' }}>{user.email}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 

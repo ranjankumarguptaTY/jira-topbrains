@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
 from app.core.database import get_database, serialize_doc, serialize_docs
 from app.core.security import (
@@ -76,6 +76,39 @@ async def list_users(db=Depends(get_database)):
     cursor = db.users.find({}, {"password_hash": 0}).sort("name", 1)
     users = await cursor.to_list(length=100)
     return serialize_docs(users)
+
+@router.get("/search", response_model=list[UserResponse])
+async def search_users(
+    q: str = Query(..., min_length=1),
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    """Search registered users by name or email query."""
+    regex_pattern = {"$regex": q.strip(), "$options": "i"}
+    cursor = db.users.find(
+        {
+            "_id": {"$ne": ObjectId(current_user["id"])},
+            "$or": [{"name": regex_pattern}, {"email": regex_pattern}]
+        },
+        {"password_hash": 0}
+    ).limit(20)
+    users = await cursor.to_list(length=20)
+
+    # Get current user's team memberships to determine internal vs external/guest
+    my_teams = await db.team_memberships.find({"user_id": current_user["id"]}).to_list(100)
+    my_team_ids = set(m["team_id"] for m in my_teams)
+
+    result = []
+    for u in users:
+        doc = serialize_doc(u)
+        u_teams = await db.team_memberships.find({"user_id": doc["id"]}).to_list(100)
+        u_team_ids = set(m["team_id"] for m in u_teams)
+        # If they share at least one team, or both have no teams assigned (default org), internal; else external
+        shared = bool(my_team_ids & u_team_ids)
+        doc["is_external"] = not shared if (my_team_ids or u_team_ids) else False
+        result.append(doc)
+
+    return result
 
 @router.post("/admin/create-user", response_model=UserResponse)
 async def admin_create_user(

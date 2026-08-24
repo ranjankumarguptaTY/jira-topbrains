@@ -204,7 +204,9 @@ body {
   line-height: 1.5;
   color: var(--color-neutral-900);
   background-color: var(--color-neutral-0);
-  overflow: hidden;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 a {

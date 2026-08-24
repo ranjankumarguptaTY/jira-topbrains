@@ -48,6 +48,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
   listUsers: () => api.get('/auth/users'),
+  searchUsers: (query) => api.get('/auth/search', { params: { q: query } }),
   adminCreateUser: (data) => api.post('/auth/admin/create-user', data),
   adminUpdateRole: (userId, role) => api.patch(`/auth/admin/users/${userId}/role`, { role }),
   adminUpdateStatus: (userId, isActive) => api.patch(`/auth/admin/users/${userId}/status`, { is_active: isActive }),
