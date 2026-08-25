@@ -194,6 +194,23 @@ async def can_manage_project(db, user: dict, project_id: str) -> bool:
     return False
 
 
+import html
+import re
+
+def sanitize_text(text: Optional[str]) -> str:
+    """Sanitize user submitted text to prevent XSS, HTML injection, and command/script execution vulnerabilities.
+    - Strips dangerous null bytes and control chars
+    - HTML-escapes special characters (<, >, &, \", ')
+    - Preserves plain text, formatting, code snippets, and emoji safely
+    """
+    if not text:
+        return ""
+    # Strip null bytes and non-printable control characters (except newline, tab, cr)
+    cleaned = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    # HTML escape dangerous characters
+    escaped = html.escape(cleaned, quote=True)
+    return escaped
+
 async def get_user_orgs(db, user_id: str) -> list:
     """Get all organizations a user belongs to."""
     memberships = await db.org_memberships.find({"user_id": user_id}).to_list(100)

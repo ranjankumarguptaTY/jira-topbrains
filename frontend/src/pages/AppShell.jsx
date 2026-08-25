@@ -26,6 +26,7 @@ import {
   Check,
   ChevronsUpDown,
 } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
 import { NotificationPanel } from '../components/layout/NotificationPanel';
 import { TopBrainsLogo } from '../components/common/TopBrainsLogo';
 import './AppShell.css';
@@ -33,6 +34,7 @@ import './AppShell.css';
 const AppShell = () => {
   const { currentUser, logout, canManageOrg, isOrgAdmin, currentOrg, userOrgs, switchOrg, isSuperAdmin } = useAuth();
   const { unreadCount, unreadChatCount } = useNotifications();
+  const { showConfirm } = useModal();
   const { isConnected } = useWebSocket();
   const navigate = useNavigate();
   const location = useLocation();
@@ -57,8 +59,18 @@ const AppShell = () => {
   ];
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    setShowUserMenu(false);
+    showConfirm({
+      title: 'Sign Out of TopBrains?',
+      message: 'Are you sure you want to sign out? You will need to log back in to access your chats, projects, and notifications.',
+      confirmText: 'Sign Out',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      onConfirm: async () => {
+        logout();
+        navigate('/login');
+      },
+    });
   };
 
   const userInitials = currentUser?.name
@@ -163,6 +175,11 @@ const AppShell = () => {
                 <div className="dropdown-menu user-dropdown">
                   <div className="user-dropdown-header">
                     <div className="user-dropdown-name">{currentUser?.name}</div>
+                    {currentUser?.company_name && (
+                      <div style={{ fontSize: '11px', color: '#5E6C84', fontWeight: 600, marginTop: '2px' }}>
+                        🏢 {currentUser.company_name}
+                      </div>
+                    )}
                     <div className="user-dropdown-role badge badge-primary" style={{ textTransform: 'capitalize' }}>
                       {isSuperAdmin?.()
                         ? 'Super Admin'
@@ -389,6 +406,23 @@ const AppShell = () => {
                 </NavLink>
               );
             })}
+
+            <button
+              className="sidebar-nav-item sidebar-logout-btn"
+              onClick={handleLogout}
+              title="Sign Out"
+              style={{
+                width: '100%',
+                border: 'none',
+                background: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                color: '#DE350B',
+              }}
+            >
+              <LogOut size={18} />
+              {!sidebarCollapsed && <span>Sign Out</span>}
+            </button>
 
             <button
               className="sidebar-collapse-btn"

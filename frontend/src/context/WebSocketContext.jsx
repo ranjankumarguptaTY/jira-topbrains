@@ -39,4 +39,15 @@ export const WebSocketProvider = ({ children }) => {
   );
 };
 
-export const useWebSocket = () => useContext(WebSocketContext);
+export const useWebSocket = () => {
+  const context = useContext(WebSocketContext);
+  if (!context) {
+    return {
+      connectionState: 'disconnected',
+      isConnected: false,
+      subscribe: () => () => {},
+      send: () => {},
+    };
+  }
+  return context;
+};

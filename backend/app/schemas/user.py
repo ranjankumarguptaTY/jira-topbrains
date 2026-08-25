@@ -5,13 +5,15 @@ from datetime import datetime
 class UserBase(BaseModel):
     email: EmailStr
     name: str = Field(..., min_length=1, max_length=100)
+    company_name: Optional[str] = Field(None, max_length=120)
     avatar_url: Optional[str] = Field(None, max_length=500)
     is_active: bool = True
 
 class UserCreate(BaseModel):
-    """Public registration — no role selection. Users register as common users."""
+    """Public registration — users provide company name, name, email, and password."""
     email: EmailStr
     name: str = Field(..., min_length=1, max_length=100)
+    company_name: Optional[str] = Field(None, max_length=120)
     # Enforce 6 to 72 character bounds to protect against Long Password Bcrypt CPU Exhaustion (Bcrypt DoS)
     password: str = Field(..., min_length=6, max_length=72, description="Max 72 characters prevents Bcrypt DoS")
     avatar_url: Optional[str] = Field(None, max_length=500)
@@ -20,6 +22,7 @@ class AdminUserCreate(BaseModel):
     """Admin-created user — can assign platform-level role."""
     email: EmailStr
     name: str = Field(..., min_length=1, max_length=100)
+    company_name: Optional[str] = Field(None, max_length=120)
     password: str = Field(..., min_length=6, max_length=72)
     avatar_url: Optional[str] = Field(None, max_length=500)
     role: str = Field("member", pattern="^(super_admin|admin|org_admin|lead|member|pm|qa|tester|engineer)$")
@@ -39,6 +42,7 @@ class UserResponse(BaseModel):
     id: str
     email: Optional[str] = None
     name: Optional[str] = None
+    company_name: Optional[str] = None
     avatar_url: Optional[str] = None
     role: Optional[str] = "member"  # Platform-level role (super_admin, admin, member)
     is_active: Optional[bool] = True

@@ -3,11 +3,11 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useModal } from '../context/ModalContext';
 import { authAPI } from '../services/api';
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Monitor, Info, Check } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Monitor, Info, Check, Eye, EyeOff } from 'lucide-react';
 import './SettingsPage.css';
 
 const SettingsPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, updateProfile } = useAuth();
   const { showToast } = useModal();
   const { subscribeToPushNotifications } = useNotifications();
   const [theme, setTheme] = useState(localStorage.getItem('jira-clone-theme') || 'light');
@@ -15,11 +15,39 @@ const SettingsPage = () => {
     localStorage.getItem('jira-clone-desktop-notifications') === 'true'
   );
 
+  // Profile state
+  const [displayName, setDisplayName] = useState(currentUser?.name || '');
+  const [companyName, setCompanyName] = useState(currentUser?.company_name || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault();
+    if (!displayName.trim()) {
+      showToast({ message: 'Display Name cannot be empty.', type: 'error' });
+      return;
+    }
+    try {
+      setIsSavingProfile(true);
+      await updateProfile({
+        name: displayName.trim(),
+        company_name: companyName.trim(),
+      });
+      showToast({ message: 'Profile updated successfully!', type: 'success' });
+    } catch (err) {
+      showToast({ message: 'Failed to update profile: ' + (err.response?.data?.detail || err.message), type: 'error' });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handlePasswordChangeSubmit = async (e) => {
     e.preventDefault();
@@ -119,20 +147,46 @@ const SettingsPage = () => {
               </div>
               <div className="settings-profile-info">
                 <div className="settings-profile-name">{currentUser?.name}</div>
+                {currentUser?.company_name && (
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#0052CC', marginTop: '2px' }}>
+                    🏢 {currentUser.company_name}
+                  </div>
+                )}
                 <div className="settings-profile-email">{currentUser?.email}</div>
                 <span className="badge badge-primary">{currentUser?.role}</span>
               </div>
             </div>
 
-            <div className="settings-form-group">
-              <label className="input-label">Display Name</label>
-              <input className="input-field" type="text" defaultValue={currentUser?.name} />
-            </div>
-            <div className="settings-form-group">
-              <label className="input-label">Email</label>
-              <input className="input-field" type="email" defaultValue={currentUser?.email} disabled />
-            </div>
-            <button className="btn btn-primary">Save Changes</button>
+            <form onSubmit={handleProfileSave}>
+              <div className="settings-form-group">
+                <label className="input-label">Display Name</label>
+                <input
+                  className="input-field"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your Full Name"
+                  required
+                />
+              </div>
+              <div className="settings-form-group">
+                <label className="input-label">Company / Organization</label>
+                <input
+                  className="input-field"
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Acme Corp or TopBrains Tech"
+                />
+              </div>
+              <div className="settings-form-group">
+                <label className="input-label">Email</label>
+                <input className="input-field" type="email" defaultValue={currentUser?.email} disabled />
+              </div>
+              <button type="submit" disabled={isSavingProfile} className="btn btn-primary">
+                {isSavingProfile ? 'Saving...' : 'Save Profile Changes'}
+              </button>
+            </form>
           </div>
         </div>
 
@@ -233,33 +287,99 @@ const SettingsPage = () => {
           <form className="settings-card-body" onSubmit={handlePasswordChangeSubmit}>
             <div className="settings-form-group">
               <label className="input-label">Current Password</label>
-              <input
-                className="input-field"
-                type="password"
-                placeholder="Enter current password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  className="input-field"
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  placeholder="Enter current password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  style={{ paddingRight: '38px', width: '100%' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#7A869A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                  }}
+                  title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
             <div className="settings-form-group">
               <label className="input-label">New Password</label>
-              <input
-                className="input-field"
-                type="password"
-                placeholder="At least 6 characters"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  className="input-field"
+                  type={showNewPassword ? 'text' : 'password'}
+                  placeholder="At least 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{ paddingRight: '38px', width: '100%' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#7A869A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                  }}
+                  title={showNewPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
             <div className="settings-form-group">
               <label className="input-label">Confirm New Password</label>
-              <input
-                className="input-field"
-                type="password"
-                placeholder="Repeat new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  className="input-field"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Repeat new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{ paddingRight: '38px', width: '100%' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#7A869A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                  }}
+                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             {/* Note to user if they forgot their password */}

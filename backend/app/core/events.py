@@ -55,8 +55,14 @@ async def emit_event(event_type: str, payload: dict):
 
 
 import json
+import os
 import asyncio
+from pathlib import Path
 from pywebpush import webpush, WebPushException
+
+# Resolve path to VAPID private key robustly
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+VAPID_KEY_PATH = str(BACKEND_DIR / "private_key.pem")
 
 async def trigger_web_push(db, user_id: str, payload: dict):
     cursor = db.push_subscriptions.find({"user_id": user_id})
@@ -73,7 +79,7 @@ async def trigger_web_push(db, user_id: str, payload: dict):
                     }
                 },
                 data=json.dumps(payload),
-                vapid_private_key="backend/private_key.pem",
+                vapid_private_key=VAPID_KEY_PATH,
                 vapid_claims={"sub": "mailto:admin@topbrains.com"}
             )
         except WebPushException as ex:

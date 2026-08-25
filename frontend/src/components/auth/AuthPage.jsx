@@ -15,6 +15,8 @@ import {
   Radio,
   ChevronDown,
   ChevronUp,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useModal } from "../../context/ModalContext";
@@ -88,7 +90,9 @@ export const AuthPage = () => {
   const [mode, setMode] = useState("login"); // 'login' | 'register'
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDemoAccounts, setShowDemoAccounts] = useState(false);
 
@@ -137,6 +141,7 @@ export const AuthPage = () => {
       setIsSubmitting(true);
       const user = await register({
         name: name.trim(),
+        company_name: companyName.trim(),
         email: email.trim(),
         password,
       });
@@ -278,13 +283,33 @@ export const AuthPage = () => {
                     <div className="auth-input-wrapper">
                       <Lock size={16} className="auth-input-icon" />
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         placeholder="Enter your password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="auth-input"
+                        style={{ paddingRight: "40px" }}
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: "absolute",
+                          right: "12px",
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#7A869A",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                        }}
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
                     </div>
                   </div>
 
@@ -378,6 +403,24 @@ export const AuthPage = () => {
 
                   <div className="auth-input-group">
                     <label className="auth-input-label">
+                      Company / Organization Name{" "}
+                      <span style={{ color: "var(--color-danger-500)" }}>*</span>
+                    </label>
+                    <div className="auth-input-wrapper">
+                      <Radio size={16} className="auth-input-icon" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Acme Corporation or TopBrains Tech"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        className="auth-input"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="auth-input-group">
+                    <label className="auth-input-label">
                       Work Email{" "}
                       <span style={{ color: "var(--color-danger-500)" }}>*</span>
                     </label>
@@ -402,13 +445,33 @@ export const AuthPage = () => {
                     <div className="auth-input-wrapper">
                       <Lock size={16} className="auth-input-icon" />
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         placeholder="At least 6 characters"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="auth-input"
+                        style={{ paddingRight: "40px" }}
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: "absolute",
+                          right: "12px",
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#7A869A",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                        }}
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
                     </div>
                   </div>
 

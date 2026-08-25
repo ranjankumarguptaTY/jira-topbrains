@@ -331,14 +331,12 @@ const ChatPage = () => {
     }
   };
 
-  // WebSocket event handler
+  // WebSocket event listeners
   useEffect(() => {
-    if (!ws?.lastMessage) return;
+    if (!ws?.subscribe) return;
 
-    const event = ws.lastMessage;
-
-    if (event.type === 'CHAT_MESSAGE_CREATED') {
-      const { conversation_id, message } = event;
+    const unsubMsg = ws.subscribe('CHAT_MESSAGE_CREATED', (data) => {
+      const { conversation_id, message } = data;
 
       if (conversation_id === conversationId) {
         setMessages((prev) => {
@@ -361,8 +359,14 @@ const ChatPage = () => {
         }, 50);
       }
 
-      setConversations((prev) =>
-        prev.map((c) => {
+      setConversations((prev) => {
+        const exists = prev.some((c) => c.id === conversation_id);
+        if (!exists) {
+          // New conversation created, reload conversation list
+          loadConversations();
+          return prev;
+        }
+        return prev.map((c) => {
           if (c.id === conversation_id) {
             return {
               ...c,
@@ -375,12 +379,12 @@ const ChatPage = () => {
             };
           }
           return c;
-        })
-      );
-    }
+        });
+      });
+    });
 
-    if (event.type === 'CHAT_MESSAGES_READ') {
-      const { conversation_id, reader_id } = event;
+    const unsubRead = ws.subscribe('CHAT_MESSAGES_READ', (data) => {
+      const { conversation_id, reader_id } = data;
       if (conversation_id === conversationId) {
         setMessages((prev) =>
           prev.map((m) => {
@@ -392,12 +396,18 @@ const ChatPage = () => {
           })
         );
       }
-    }
+    });
 
-    if (event.type === 'GUEST_REQUEST_RECEIVED') {
+    const unsubGuest = ws.subscribe('GUEST_REQUEST_RECEIVED', () => {
       loadGuestRequests();
-    }
-  }, [ws?.lastMessage, conversationId, currentUser]);
+    });
+
+    return () => {
+      unsubMsg();
+      unsubRead();
+      unsubGuest();
+    };
+  }, [ws, conversationId, currentUser, loadConversations, loadGuestRequests]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -604,6 +614,37 @@ const ChatPage = () => {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const decodeAndFormatMessage = (content) => {
+    if (!content) return '';
+    
+    // Safely unescape standard HTML entities for clean display while ensuring zero execution risk (rendered as text nodes)
+    const parser = new DOMParser();
+    const decoded = parser.parseFromString(content, 'text/html').body.textContent || content;
+
+    // Check if message is a code block wrapped in backticks (e.g. ```code``` or `snippet`)
+    if (decoded.startsWith('```') && decoded.endsWith('```')) {
+      const codeOnly = decoded.slice(3, -3).replace(/^\w+\n/, ''); // strip optional language tag on first line
+      return (
+        <pre
+          style={{
+            background: 'rgba(9, 30, 66, 0.08)',
+            padding: '8px 10px',
+            borderRadius: '6px',
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            margin: '4px 0',
+          }}
+        >
+          <code>{codeOnly}</code>
+        </pre>
+      );
+    }
+
+    return <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{decoded}</span>;
+  };
+
   const formatBytes = (bytes) => {
     if (!bytes) return '0 B';
     const k = 1024;
@@ -649,27 +690,93 @@ const ChatPage = () => {
   const groupChats = filterByQuery(conversations.filter((c) => c.type === 'group' || c.type === 'channel'));
   const directChats = filterByQuery(conversations.filter((c) => c.type === 'direct'));
 
-  const renderConversationItem = (convo) => (
-    <div
-      key={convo.id}
-      className={`conversation-item ${convo.id === conversationId ? 'active' : ''} ${convo.unread_count > 0 ? 'unread' : ''}`}
-      onClick={() => navigate(`/chat/${convo.id}`)}
-    >
-      <div className="conversation-avatar">{getConversationAvatar(convo)}</div>
-      <div className="conversation-info">
-        <div className="conversation-name truncate" style={{ fontSize: '13px', fontWeight: 600 }}>
-          {getConversationName(convo)}
+  const renderConversationItem = (convo) => {
+    const isCurrentActive = convo.id === conversationId;
+    const hasUnread = convo.unread_count > 0 && !isCurrentActive;
+
+    return (
+      <div
+        key={convo.id}
+        className={`conversation-item ${isCurrentActive ? 'active' : ''} ${hasUnread ? 'unread' : ''}`}
+        onClick={() => navigate(`/chat/${convo.id}`)}
+        style={{
+          position: 'relative',
+          backgroundColor: hasUnread ? 'rgba(0, 82, 204, 0.04)' : undefined,
+        }}
+      >
+        <div className="conversation-avatar" style={{ position: 'relative' }}>
+          {getConversationAvatar(convo)}
+          {hasUnread && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 9,
+                height: 9,
+                borderRadius: '50%',
+                backgroundColor: '#DE350B',
+                border: '2px solid #FFFFFF',
+              }}
+            />
+          )}
         </div>
-        <div className="conversation-last-msg truncate" style={{ fontSize: '11px', color: '#7A869A' }}>
-          {convo.last_message?.content || 'No messages yet'}
+        <div className="conversation-info">
+          <div
+            className="conversation-name truncate"
+            style={{
+              fontSize: '13px',
+              fontWeight: hasUnread ? 700 : 600,
+              color: hasUnread ? '#172B4D' : '#253858',
+            }}
+          >
+            {getConversationName(convo)}
+          </div>
+          <div
+            className="conversation-last-msg truncate"
+            style={{
+              fontSize: '11px',
+              fontWeight: hasUnread ? 600 : 400,
+              color: hasUnread ? '#0052CC' : '#7A869A',
+            }}
+          >
+            {convo.last_message?.content || 'No messages yet'}
+          </div>
+        </div>
+        <div className="conversation-meta">
+          <span
+            className="conversation-time"
+            style={{
+              color: hasUnread ? '#0052CC' : '#7A869A',
+              fontWeight: hasUnread ? 700 : 400,
+            }}
+          >
+            {formatTime(convo.last_message?.created_at)}
+          </span>
+          {hasUnread && (
+            <span
+              className="badge badge-count"
+              style={{
+                backgroundColor: '#DE350B',
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: '10px',
+                minWidth: '18px',
+                height: '18px',
+                borderRadius: '9px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 5px',
+              }}
+            >
+              {convo.unread_count > 99 ? '99+' : convo.unread_count}
+            </span>
+          )}
         </div>
       </div>
-      <div className="conversation-meta">
-        <span className="conversation-time">{formatTime(convo.last_message?.created_at)}</span>
-        {convo.unread_count > 0 && <span className="badge badge-count">{convo.unread_count}</span>}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderSectionHeader = (title, count, sectionKey, icon) => (
     <div
@@ -1226,7 +1333,7 @@ const ChatPage = () => {
                             </div>
                           )}
                           <div className="message-bubble">
-                            <div className="message-text">{msg.content}</div>
+                            <div className="message-text">{decodeAndFormatMessage(msg.content)}</div>
                             <div className="message-time">
                               {formatMessageBubbleTime(msg.created_at)}
                               {isOwn && (

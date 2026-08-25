@@ -146,9 +146,16 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  const updateProfile = async (profileData) => {
+    const res = await authAPI.updateProfile(profileData);
+    const updatedUser = res.data;
+    setCurrentUser(updatedUser);
+    return updatedUser;
+  };
+
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
-    setToken('');
+    setToken(null);
     setCurrentUser(null);
     setCurrentOrg(null);
     setUserOrgs([]);
@@ -197,6 +204,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated,
         login,
         register,
+        updateProfile,
         logout,
         switchUser,
         refreshUsers: fetchUsers,
@@ -230,6 +238,7 @@ export const useAuth = () => {
       isAuthenticated: false,
       login: async () => {},
       register: async () => {},
+      updateProfile: async () => {},
       logout: () => {},
       switchUser: () => {},
       refreshUsers: async () => {},

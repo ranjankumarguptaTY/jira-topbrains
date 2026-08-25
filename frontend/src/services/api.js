@@ -47,6 +47,7 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
+  updateProfile: (data) => api.put('/auth/profile', data),
   listUsers: (orgId) => api.get('/auth/users', { params: orgId ? { org_id: orgId } : {} }),
   searchUsers: (query, orgId, limit = 10, includeSelf = false) =>
     api.get('/auth/search', {

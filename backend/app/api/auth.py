@@ -31,6 +31,7 @@ async def register(user_in: UserCreate, db=Depends(get_database)):
     user_doc = {
         "email": user_in.email.lower(),
         "name": user_in.name,
+        "company_name": user_in.company_name or "",
         "password_hash": get_password_hash(user_in.password),
         "avatar_url": avatar,
         "role": "member",  # Always member — org-level roles are managed via org_memberships
@@ -274,6 +275,32 @@ async def admin_update_user_status(
     
     updated = await db.users.find_one({"_id": ObjectId(user_id)}, {"password_hash": 0})
     return serialize_doc(updated)
+
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    company_name: Optional[str] = None
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    req: ProfileUpdateRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    update_data = {}
+    if req.name is not None:
+        update_data["name"] = req.name.strip()
+    if req.company_name is not None:
+        update_data["company_name"] = req.company_name.strip()
+
+    if update_data:
+        update_data["updated_at"] = datetime.now(timezone.utc)
+        await db.users.update_one(
+            {"_id": ObjectId(current_user["id"])},
+            {"$set": update_data}
+        )
+    
+    updated_user = await db.users.find_one({"_id": ObjectId(current_user["id"])})
+    return serialize_doc(updated_user)
 
 @router.post("/change-password")
 async def change_password(

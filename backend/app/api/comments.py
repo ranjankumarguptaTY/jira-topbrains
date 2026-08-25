@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from bson import ObjectId
 from app.core.database import get_database, serialize_doc, serialize_docs
-from app.core.security import get_current_user, get_current_user_optional
+from app.core.security import get_current_user, get_current_user_optional, sanitize_text
 from app.core.events import emit_event
 from app.schemas.comment import CommentCreate, CommentUpdate, CommentResponse, ActivityResponse
 
@@ -35,11 +35,12 @@ async def create_comment(
 ):
     now = datetime.now(timezone.utc)
     user_id = current_user["id"] if current_user else None
+    safe_content = sanitize_text(comment_in.content)
     
     doc = {
         "issue_id": comment_in.issue_id,
         "user_id": user_id,
-        "content": comment_in.content.strip(),
+        "content": safe_content,
         "created_at": now,
         "updated_at": now
     }

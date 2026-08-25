@@ -228,7 +228,7 @@ async def send_message(
 ):
     """Send a message to a conversation."""
     # Verify membership (allow super_admin anywhere)
-    from app.core.security import is_super_admin
+    from app.core.security import is_super_admin, sanitize_text
     is_super = is_super_admin(current_user)
 
     membership = await db.conversation_members.find_one({
@@ -237,11 +237,14 @@ async def send_message(
     if not membership and not is_super:
         raise HTTPException(status_code=403, detail="Not a member of this conversation")
 
+    # Sanitize message content to prevent server/browser script injection (XSS/RCE)
+    safe_content = sanitize_text(msg_in.content)
+
     now = datetime.now(timezone.utc)
     msg_doc = {
         "conversation_id": conversation_id,
         "sender_id": current_user["id"],
-        "content": msg_in.content,
+        "content": safe_content,
         "type": msg_in.type,
         "read_by": [current_user["id"]],
         "created_at": now,

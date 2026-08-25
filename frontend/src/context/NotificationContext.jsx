@@ -102,21 +102,38 @@ export const NotificationProvider = ({ children }) => {
     if (!isAuthenticated || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
     try {
       const reg = await navigator.serviceWorker.ready;
-      const subscribeOptions = {
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      };
-      const subscription = await reg.pushManager.subscribe(subscribeOptions);
-      await notificationsAPI.subscribePush(subscription);
-      console.log('Successfully registered for Web Push notifications');
+      let subscription = await reg.pushManager.getSubscription();
+      if (!subscription) {
+        const subscribeOptions = {
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        };
+        subscription = await reg.pushManager.subscribe(subscribeOptions);
+      }
+      if (subscription) {
+        await notificationsAPI.subscribePush(subscription);
+        localStorage.setItem('jira-clone-desktop-notifications', 'true');
+        console.log('Successfully registered for Web Push notifications');
+      }
     } catch (err) {
       console.warn('Push subscription failed', err);
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated && Notification.permission === 'granted' && localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
-      subscribeToPushNotifications();
+    if (isAuthenticated) {
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          subscribeToPushNotifications();
+        } else if (Notification.permission === 'default') {
+          // Ask for permission gracefully on user's first login
+          Notification.requestPermission().then((perm) => {
+            if (perm === 'granted') {
+              subscribeToPushNotifications();
+            }
+          }).catch(() => {});
+        }
+      }
     }
   }, [isAuthenticated, subscribeToPushNotifications]);
 
@@ -219,4 +236,21 @@ export const NotificationProvider = ({ children }) => {
   );
 };
 
-export const useNotifications = () => useContext(NotificationContext);
+export const useNotifications = () => {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    return {
+      notifications: [],
+      unreadCount: 0,
+      unreadChatCount: 0,
+      loading: false,
+      fetchNotifications: async () => {},
+      fetchUnreadCount: async () => {},
+      fetchUnreadChatCount: async () => {},
+      markAsRead: async () => {},
+      markAllAsRead: async () => {},
+      clearConversationNotifications: () => {},
+    };
+  }
+  return context;
+};

@@ -48,12 +48,19 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   try {
     const data = event.data ? event.data.json() : {};
-    const title = data.title || 'New Notification';
+    const title = data.title || 'TopBrains Agile';
     const options = {
       body: data.body || 'New message received',
       icon: '/favicon.svg',
       badge: '/favicon.svg',
-      data: data.data || {}
+      tag: data.data?.conversation_id || 'topbrains-notification',
+      renotify: true,
+      vibrate: [100, 50, 100],
+      requireInteraction: false,
+      data: data.data || {},
+      actions: [
+        { action: 'open', title: 'Open Message' }
+      ]
     };
     event.waitUntil(
       self.registration.showNotification(title, options)
