@@ -36,9 +36,15 @@ class WebSocketService {
     this.isIntentionalClose = false;
     this._setConnectionState('connecting');
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    this.url = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
+    if (import.meta.env?.VITE_WS_URL) {
+      const baseWs = import.meta.env.VITE_WS_URL;
+      const delimiter = baseWs.includes('?') ? '&' : '?';
+      this.url = `${baseWs}${delimiter}token=${encodeURIComponent(token)}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      this.url = `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
+    }
 
     try {
       this.ws = new WebSocket(this.url);
