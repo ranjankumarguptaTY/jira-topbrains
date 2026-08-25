@@ -434,13 +434,35 @@ async def seed_jira_database(db=Depends(get_database)):
             "last_read_at": now,
         })
 
-    await db.messages.insert_one({
+    first_group_msg_res = await db.messages.insert_one({
         "conversation_id": group1_id,
         "sender_id": tony_qa_id,
         "content": "Hey team, CLOUD-3 is verified on staging. Moving ticket to In Review!",
         "type": "text",
-        "read_by": [tony_qa_id, alex_lead_id],
+        "read_by": [tony_qa_id, alex_lead_id, john_dev_id],
+        "reactions": [
+            {"emoji": "🔥", "user_id": alex_lead_id, "user_name": "Alex Morgan"},
+            {"emoji": "👍", "user_id": john_dev_id, "user_name": "John Developer"},
+            {"emoji": "🚀", "user_id": tony_qa_id, "user_name": "Tony QA Specialist"},
+        ],
         "created_at": now - timedelta(hours=3),
+    })
+
+    await db.messages.insert_one({
+        "conversation_id": group1_id,
+        "sender_id": alex_lead_id,
+        "content": "Awesome work Tony! I'll do the final merge today.",
+        "type": "text",
+        "reply_to": {
+            "id": str(first_group_msg_res.inserted_id),
+            "content": "Hey team, CLOUD-3 is verified on staging. Moving ticket to In Review!",
+            "sender_name": "Tony QA Specialist",
+        },
+        "reactions": [
+            {"emoji": "❤️", "user_id": tony_qa_id, "user_name": "Tony QA Specialist"},
+        ],
+        "read_by": [alex_lead_id, tony_qa_id],
+        "created_at": now - timedelta(hours=2),
     })
 
     # ====================================================
@@ -668,6 +690,9 @@ async def seed_jira_database(db=Depends(get_database)):
             "content": "Hi John! Have you had a chance to review the Jira sprint board for CLOUD-2?",
             "type": "text",
             "read_by": [alex_lead_id, john_dev_id],
+            "reactions": [
+                {"emoji": "👍", "user_id": john_dev_id, "user_name": "John Developer"},
+            ],
             "created_at": now - timedelta(days=2),
         },
         {
@@ -676,6 +701,10 @@ async def seed_jira_database(db=Depends(get_database)):
             "content": "Hey Alex! Yes, working on the real-time WebSocket broadcast notifications right now.",
             "type": "text",
             "read_by": [john_dev_id, alex_lead_id],
+            "reactions": [
+                {"emoji": "🚀", "user_id": alex_lead_id, "user_name": "Alex Morgan"},
+                {"emoji": "🔥", "user_id": john_dev_id, "user_name": "John Developer"},
+            ],
             "created_at": now - timedelta(hours=5),
         },
     ])

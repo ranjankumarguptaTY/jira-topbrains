@@ -34,6 +34,8 @@ import {
   ChevronDown,
   ChevronRight,
   UserMinus,
+  CornerUpLeft,
+  Forward,
 } from 'lucide-react';
 import './ChatPage.css';
 
@@ -84,6 +86,8 @@ const ChatPage = () => {
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [searchedMemberUsers, setSearchedMemberUsers] = useState([]);
   const [searchingMemberUsers, setSearchingMemberUsers] = useState(false);
+  const [selectedAddMemberUsers, setSelectedAddMemberUsers] = useState([]); // List of { id, name, email, avatar_url }
+  const [addingMembersLoading, setAddingMembersLoading] = useState(false);
 
   // Section collapse states
   const [collapsedSections, setCollapsedSections] = useState({});
@@ -122,16 +126,25 @@ const ChatPage = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
 
+  // Message reply, forward, and reaction states
+  const [replyTo, setReplyTo] = useState(null); // { id, content, sender_name }
+  const [forwardingMessage, setForwardingMessage] = useState(null); // message object to forward
+  const [forwardSelectedConvoIds, setForwardSelectedConvoIds] = useState([]); // multiple selected conversation IDs
+  const [forwardSearchQuery, setForwardSearchQuery] = useState('');
+  const [forwardingLoading, setForwardingLoading] = useState(false);
+  const [activeReactionPickerMessageId, setActiveReactionPickerMessageId] = useState(null);
+  const [activeMessageActionId, setActiveMessageActionId] = useState(null); // Message clicked to keep toolbar open
+
   // Lock background scroll when modals or drawers are open
   useEffect(() => {
-    const isAnyModalOpen = showMembersModal || showAddMember || showNewChat;
+    const isAnyModalOpen = showMembersModal || showAddMember || showNewChat || !!forwardingMessage;
     if (isAnyModalOpen) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
     }
     return () => document.body.classList.remove('modal-open');
-  }, [showMembersModal, showAddMember, showNewChat]);
+  }, [showMembersModal, showAddMember, showNewChat, forwardingMessage]);
 
   // Search registered users by name or email
   useEffect(() => {
@@ -153,14 +166,14 @@ const ChatPage = () => {
     return () => clearTimeout(timer);
   }, [userSearchQuery]);
 
-  // Load org members for group chat creation
+  // Load org members for group chat creation and Add Member drawer
   useEffect(() => {
-    if (showNewChat && newChatTab === 'group' && currentOrg?.id) {
+    if ((showAddMember || (showNewChat && newChatTab === 'group')) && currentOrg?.id) {
       orgAPI.listMembers(currentOrg.id).then((res) => {
         setOrgMemberList(res.data || []);
       }).catch((err) => console.warn('Failed to load org members', err));
     }
-  }, [showNewChat, newChatTab, currentOrg]);
+  }, [showAddMember, showNewChat, newChatTab, currentOrg]);
 
   // Refs
   const messagesEndRef = useRef(null);
@@ -191,6 +204,11 @@ const ChatPage = () => {
         !moreMenuRef.current.contains(event.target)
       ) {
         setShowMoreMenu(false);
+      }
+      // If clicking outside message bubble / actions, close clicked message menu & reaction picker
+      if (!event.target.closest('.chat-message') && !event.target.closest('.chat-quick-reaction-picker')) {
+        setActiveMessageActionId(null);
+        setActiveReactionPickerMessageId(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -227,18 +245,39 @@ const ChatPage = () => {
     }
   };
 
-  const handleAddMember = async (user) => {
+  const toggleSelectAddMember = (user) => {
+    setSelectedAddMemberUsers((prev) => {
+      const exists = prev.some((u) => u.id === user.id);
+      if (exists) {
+        return prev.filter((u) => u.id !== user.id);
+      } else {
+        return [...prev, user];
+      }
+    });
+  };
+
+  const handleAddSelectedMembers = async () => {
+    if (selectedAddMemberUsers.length === 0) return;
+
     try {
-      await conversationsAPI.addMember(conversationId, user.id);
+      setAddingMembersLoading(true);
+      const userIds = selectedAddMemberUsers.map((u) => u.id);
+      await conversationsAPI.addMembers(conversationId, userIds);
+
+      const addedNames = selectedAddMemberUsers.map((u) => u.name).join(', ');
       setShowAddMember(false);
+      setSelectedAddMemberUsers([]);
       setMemberSearchQuery('');
       setSearchedMemberUsers([]);
+
       const res = await conversationsAPI.get(conversationId);
       setActiveConversation(res.data);
-      alert(`${user.name} added successfully!`);
+      loadConversations(false);
     } catch (err) {
-      console.error('Failed to add member', err);
-      alert('Failed to add member to conversation.');
+      console.error('Failed to add members', err);
+      alert('Failed to add members to conversation.');
+    } finally {
+      setAddingMembersLoading(false);
     }
   };
 
@@ -425,6 +464,20 @@ const ChatPage = () => {
       loadGuestRequests();
     });
 
+    const unsubReacted = ws.subscribe('CHAT_MESSAGE_REACTED', (data) => {
+      const { conversation_id, message_id, reactions } = data;
+      if (conversation_id === conversationId) {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id === message_id) {
+              return { ...m, reactions };
+            }
+            return m;
+          })
+        );
+      }
+    });
+
     const unsubPresence = ws.subscribe('USER_PRESENCE_CHANGED', (data) => {
       if (data?.user_id) {
         setOnlineUsers((prev) => {
@@ -443,6 +496,7 @@ const ChatPage = () => {
       unsubMsg();
       unsubRead();
       unsubGuest();
+      unsubReacted();
       unsubPresence();
     };
   }, [ws, conversationId, currentUser, loadConversations, loadGuestRequests]);
@@ -452,7 +506,9 @@ const ChatPage = () => {
     if (!newMessage.trim() || !conversationId || sendingMessage) return;
 
     const content = newMessage.trim();
+    const replyPayload = replyTo ? { ...replyTo } : null;
     setNewMessage('');
+    setReplyTo(null);
 
     const tempId = `temp-${Date.now()}`;
     const tempCreatedAt = new Date(Date.now() + (window.serverTimeOffset || 0)).toISOString();
@@ -461,6 +517,8 @@ const ChatPage = () => {
       conversation_id: conversationId,
       sender_id: currentUser.id,
       content,
+      reply_to: replyPayload,
+      reactions: [],
       sender: { id: currentUser.id, name: currentUser.name, avatar_url: currentUser.avatar_url },
       created_at: tempCreatedAt,
       type: 'text',
@@ -471,7 +529,10 @@ const ChatPage = () => {
 
     try {
       setSendingMessage(true);
-      const res = await conversationsAPI.sendMessage(conversationId, { content });
+      const res = await conversationsAPI.sendMessage(conversationId, {
+        content,
+        reply_to: replyPayload,
+      });
       const savedMsg = res.data;
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...savedMsg, _pending: false } : m)));
       setTimeout(() => scrollToBottom('smooth'), 50);
@@ -479,8 +540,118 @@ const ChatPage = () => {
       console.error('Failed to send message', err);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setNewMessage(content);
+      if (replyPayload) setReplyTo(replyPayload);
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  const toggleForwardSelectConvo = (convoId) => {
+    setForwardSelectedConvoIds((prev) =>
+      prev.includes(convoId) ? prev.filter((id) => id !== convoId) : [...prev, convoId]
+    );
+  };
+
+  const handleForwardMultiMessage = async () => {
+    if (!forwardingMessage || forwardSelectedConvoIds.length === 0) return;
+
+    try {
+      setForwardingLoading(true);
+      const payload = {
+        content: forwardingMessage.content,
+        forward_from: {
+          id: forwardingMessage.id,
+          content: forwardingMessage.content,
+          sender_name: forwardingMessage.sender?.name || 'User',
+        },
+      };
+
+      // Send forward message to all selected conversations in parallel
+      const forwardResponses = await Promise.all(
+        forwardSelectedConvoIds.map((targetId) => conversationsAPI.sendMessage(targetId, payload))
+      );
+
+      // Immediately update sidebar conversations list with latest message and re-order
+      setConversations((prev) => {
+        const updated = prev.map((c) => {
+          const respIdx = forwardSelectedConvoIds.indexOf(c.id);
+          if (respIdx !== -1) {
+            const newMsgDoc = forwardResponses[respIdx]?.data || {
+              content: forwardingMessage.content,
+              forward_from: payload.forward_from,
+              sender_id: currentUser?.id,
+              created_at: new Date().toISOString(),
+            };
+            return {
+              ...c,
+              last_message: newMsgDoc,
+              updated_at: newMsgDoc.created_at || new Date().toISOString(),
+            };
+          }
+          return c;
+        });
+        return updated.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+      });
+
+      // If active conversation was one of the forwarded targets, append message
+      const activeResp = forwardResponses.find((r) => r?.data?.conversation_id === conversationId);
+      if (activeResp?.data) {
+        setMessages((prev) => [...prev, activeResp.data]);
+        setTimeout(() => scrollToBottom('smooth'), 50);
+      }
+
+      const targetCount = forwardSelectedConvoIds.length;
+      const firstTargetId = forwardSelectedConvoIds[0];
+
+      setForwardingMessage(null);
+      setForwardSelectedConvoIds([]);
+      setForwardSearchQuery('');
+
+      if (targetCount === 1 && firstTargetId !== conversationId) {
+        navigate(`/chat/${firstTargetId}`);
+      } else {
+        loadConversations();
+      }
+    } catch (err) {
+      console.error('Failed to forward message', err);
+      alert('Failed to forward message to one or more recipients.');
+    } finally {
+      setForwardingLoading(false);
+    }
+  };
+
+  const handleReactToMessage = async (messageId, emoji) => {
+    setActiveReactionPickerMessageId(null);
+    try {
+      // Optimistic update
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m;
+          const currentReactions = m.reactions ? [...m.reactions] : [];
+          const existingIdx = currentReactions.findIndex(
+            (r) => r.user_id === currentUser.id && r.emoji === emoji
+          );
+          if (existingIdx !== -1) {
+            currentReactions.splice(existingIdx, 1);
+          } else {
+            currentReactions.push({
+              emoji,
+              user_id: currentUser.id,
+              user_name: currentUser.name || 'You',
+            });
+          }
+          return { ...m, reactions: currentReactions };
+        })
+      );
+
+      const res = await conversationsAPI.reactToMessage(conversationId, messageId, emoji);
+      if (res.data?.reactions) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, reactions: res.data.reactions } : m))
+        );
+      }
+    } catch (err) {
+      console.error('Failed to react to message', err);
     }
   };
 
@@ -893,7 +1064,7 @@ const ChatPage = () => {
       <div className="chat-sidebar">
         <div className="chat-sidebar-header">
           <div>
-            <h2 style={{ margin: 0, fontSize: '16px' }}>Slack & Jira Chat</h2>
+            <h2 style={{ margin: 0, fontSize: '16px' }}>Workspace</h2>
             {currentOrg && (
               <span style={{ fontSize: '11px', color: '#0052CC', fontWeight: 600 }}>
                 🏢 {currentOrg.name}
@@ -1471,6 +1642,15 @@ const ChatPage = () => {
                     }
 
                     // Regular Text Message
+                    // Group reactions by emoji: { [emoji]: [ { user_id, user_name }, ... ] }
+                    const groupedReactions = {};
+                    if (msg.reactions && Array.isArray(msg.reactions)) {
+                      msg.reactions.forEach((r) => {
+                        if (!groupedReactions[r.emoji]) groupedReactions[r.emoji] = [];
+                        groupedReactions[r.emoji].push(r);
+                      });
+                    }
+
                     return (
                       <div key={msg.id} className={`chat-message ${isOwn ? 'own' : 'other'}`}>
                         {!isOwn && (
@@ -1482,7 +1662,7 @@ const ChatPage = () => {
                             <div className="message-avatar-spacer" style={{ width: 28, height: 28, flexShrink: 0 }} />
                           )
                         )}
-                        <div className="message-content">
+                        <div className="message-content" style={{ position: 'relative' }}>
                           {!isOwn && showAvatar && (
                             <div className="message-sender" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                               <span style={{ fontWeight: 600 }}>{msg.sender?.name || 'Member'}</span>
@@ -1504,23 +1684,180 @@ const ChatPage = () => {
                               )}
                             </div>
                           )}
-                          <div className="message-bubble">
-                            <div className="message-text">{decodeAndFormatMessage(msg.content)}</div>
-                            <div className="message-time">
-                              {formatMessageBubbleTime(msg.created_at)}
-                              {isOwn && (
-                                <span className="message-status" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 2 }}>
-                                  {msg._pending ? (
-                                    <Clock size={12} style={{ opacity: 0.7 }} />
-                                  ) : msg.read_by && msg.read_by.length > 1 ? (
-                                    <CheckCheck size={13} color="#57D9A3" style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.3))' }} title="Read" />
-                                  ) : (
-                                    <Check size={12} style={{ opacity: 0.8 }} title="Sent" />
-                                  )}
-                                </span>
-                              )}
+
+                          {/* Hover or Click action toolbar for Reply, Forward, React */}
+                          {!msg._pending && (
+                            <div className={`chat-msg-actions ${isOwn ? 'own-actions' : 'other-actions'} ${activeMessageActionId === msg.id ? 'active-actions' : ''}`}>
+                              <button
+                                className="chat-msg-action-btn"
+                                title="Reply"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReplyTo({
+                                    id: msg.id,
+                                    content: msg.content,
+                                    sender_name: msg.sender?.name || (isOwn ? 'You' : 'Member'),
+                                  });
+                                  setActiveMessageActionId(null);
+                                  inputRef.current?.focus();
+                                }}
+                              >
+                                <CornerUpLeft size={13} />
+                              </button>
+
+                              <button
+                                className="chat-msg-action-btn"
+                                title="Forward message"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setForwardingMessage(msg);
+                                  setActiveMessageActionId(null);
+                                }}
+                              >
+                                <Forward size={13} />
+                              </button>
+
+                              <button
+                                className="chat-msg-action-btn"
+                                title="React"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveReactionPickerMessageId(
+                                    activeReactionPickerMessageId === msg.id ? null : msg.id
+                                  );
+                                }}
+                              >
+                                <Smile size={13} />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Inline Reaction Picker Floating Bar */}
+                          {activeReactionPickerMessageId === msg.id && (
+                            <div
+                              className="chat-quick-reaction-picker"
+                              style={{
+                                position: 'absolute',
+                                top: -38,
+                                [isOwn ? 'right' : 'left']: 0,
+                                zIndex: 10,
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {['👍', '❤️', '🔥', '😂', '🎉', '🚀', '👀', '🙌'].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  className="chat-quick-reaction-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleReactToMessage(msg.id, emoji);
+                                  }}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Message Bubble Container (clicking toggles action toolbar) */}
+                          <div
+                            className="message-bubble"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMessageActionId((prev) => (prev === msg.id ? null : msg.id));
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {/* Forwarded Header */}
+                            {msg.forward_from && (
+                              <div className="chat-forwarded-header">
+                                <Forward size={11} />
+                                <span>Forwarded message</span>
+                              </div>
+                            )}
+
+                            {/* Reply Context Box (Above the reply text) */}
+                            {msg.reply_to && (
+                              <div className="chat-reply-preview-bubble">
+                                <div className="chat-reply-sender">{msg.reply_to.sender_name || 'Member'}</div>
+                                <div className="chat-reply-content truncate">{msg.reply_to.content}</div>
+                              </div>
+                            )}
+
+                            <div className="message-main-row">
+                              <div className="message-text">{decodeAndFormatMessage(msg.content)}</div>
+                              <div className="message-time">
+                                {formatMessageBubbleTime(msg.created_at)}
+                                {isOwn && (
+                                  <span className="message-status" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 2 }}>
+                                    {msg._pending ? (
+                                      <Clock size={12} style={{ opacity: 0.7 }} />
+                                    ) : msg.read_by && msg.read_by.length > 1 ? (
+                                      <CheckCheck size={13} color="#57D9A3" style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.3))' }} title="Read" />
+                                    ) : (
+                                      <Check size={12} style={{ opacity: 0.8 }} title="Sent" />
+                                    )}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
+
+                          {/* Reactions Bar Below Bubble */}
+                          {Object.keys(groupedReactions).length > 0 && (() => {
+                            const entries = Object.entries(groupedReactions);
+                            const MAX_DISPLAY = 4;
+                            const displayed = entries.slice(0, MAX_DISPLAY);
+                            const hidden = entries.slice(MAX_DISPLAY);
+                            const hiddenCount = hidden.reduce((acc, [, reactors]) => acc + reactors.length, 0);
+                            const hiddenSummary = hidden
+                              .map(([emoji, reactors]) => `${emoji} (${reactors.map(r => r.user_id === currentUser?.id ? 'You' : r.user_name).join(', ')})`)
+                              .join(' · ');
+
+                            return (
+                              <div className={`chat-message-reactions ${isOwn ? 'own-reactions' : 'other-reactions'}`}>
+                                {displayed.map(([emoji, reactors]) => {
+                                  const hasReacted = reactors.some((r) => r.user_id === currentUser?.id);
+                                  const reactorNames = reactors
+                                    .map((r) => (r.user_id === currentUser?.id ? 'You' : r.user_name))
+                                    .join(', ');
+                                  const actionHint = hasReacted ? ' (Click to remove)' : ' (Click to react)';
+                                  const tooltipText =
+                                    reactors.length === 1
+                                      ? `${reactors[0].user_id === currentUser?.id ? 'You' : reactors[0].user_name} reacted with ${emoji}${actionHint}`
+                                      : `${reactorNames} reacted with ${emoji}${actionHint}`;
+
+                                  return (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      className={`chat-reaction-badge ${hasReacted ? 'active-reaction' : ''}`}
+                                      title={tooltipText}
+                                      onClick={() => handleReactToMessage(msg.id, emoji)}
+                                    >
+                                      <span className="reaction-emoji">{emoji}</span>
+                                      <span className="reaction-count">{reactors.length}</span>
+                                    </button>
+                                  );
+                                })}
+
+                                {hidden.length > 0 && (
+                                  <div
+                                    className="chat-reaction-badge chat-reaction-overflow"
+                                    title={`More reactions: ${hiddenSummary}`}
+                                    onClick={() => {
+                                      setActiveReactionPickerMessageId(
+                                        activeReactionPickerMessageId === msg.id ? null : msg.id
+                                      );
+                                    }}
+                                  >
+                                    <span className="reaction-count">+{hidden.length}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     );
@@ -1554,6 +1891,29 @@ const ChatPage = () => {
 
             {/* Input area */}
             <div className="chat-input-area">
+              {/* Active Reply Banner */}
+              {replyTo && (
+                <div className="chat-replying-banner">
+                  <div className="chat-replying-content">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CornerUpLeft size={13} style={{ color: '#0052CC' }} />
+                      <span style={{ fontWeight: 600, color: '#0052CC', fontSize: '12px' }}>
+                        Replying to {replyTo.sender_name}
+                      </span>
+                    </div>
+                    <div className="chat-replying-text truncate">{replyTo.content}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-icon btn-ghost btn-sm"
+                    onClick={() => setReplyTo(null)}
+                    title="Cancel reply"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               <form className="chat-input-container" onSubmit={handleSendMessage}>
                 <button
                   type="button"
@@ -1615,7 +1975,7 @@ const ChatPage = () => {
         )}
       </div>
 
-      {/* RIGHT SLIDE-IN DRAWER: Add Member to Group */}
+      {/* RIGHT SLIDE-IN DRAWER: Add Member to Group (with default Org users + global search + multi-select batch add) */}
       {showAddMember && (
         <div
           style={{
@@ -1627,12 +1987,16 @@ const ChatPage = () => {
             justifyContent: 'flex-end',
             animation: 'fadeIn 0.2s ease',
           }}
-          onClick={() => setShowAddMember(false)}
+          onClick={() => {
+            setShowAddMember(false);
+            setSelectedAddMemberUsers([]);
+            setMemberSearchQuery('');
+          }}
         >
           <div
             style={{
               width: '100%',
-              maxWidth: '380px',
+              maxWidth: '420px',
               height: '100%',
               backgroundColor: '#FFFFFF',
               boxShadow: '-4px 0 24px rgba(9, 30, 66, 0.15)',
@@ -1653,16 +2017,20 @@ const ChatPage = () => {
               }}
             >
               <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#172B4D' }}>
-                  Add Member to Group
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#172B4D' }}>
+                  Add Members to Group
                 </h3>
                 <div style={{ fontSize: '12px', color: '#7A869A', marginTop: 2 }}>
-                  Search users globally or select from your workspace
+                  {memberSearchQuery.trim() ? 'Searching globally' : `Workspace members in ${currentOrg?.name || 'organization'}`}
                 </div>
               </div>
               <button
                 className="btn btn-icon btn-ghost"
-                onClick={() => setShowAddMember(false)}
+                onClick={() => {
+                  setShowAddMember(false);
+                  setSelectedAddMemberUsers([]);
+                  setMemberSearchQuery('');
+                }}
                 title="Close"
               >
                 <X size={18} />
@@ -1684,51 +2052,80 @@ const ChatPage = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Search users globally by name, email, company..."
+                  placeholder="Search users globally by name or email..."
                   value={memberSearchQuery}
                   onChange={(e) => setMemberSearchQuery(e.target.value)}
                   className="jira-input"
                   style={{ paddingLeft: 32, fontSize: '13px', width: '100%' }}
                   autoFocus
                 />
+                {memberSearchQuery && (
+                  <button
+                    className="btn btn-icon btn-ghost btn-sm"
+                    style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)' }}
+                    onClick={() => setMemberSearchQuery('')}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             </div>
 
             {/* User List */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {searchingMemberUsers ? (
-                <div style={{ textAlign: 'center', padding: '24px 0', color: '#7A869A', fontSize: '12px' }}>
-                  Searching users...
-                </div>
-              ) : memberSearchQuery.trim() ? (
-                searchedMemberUsers.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '24px 0', color: '#7A869A', fontSize: '12px' }}>
-                    No users found matching "{memberSearchQuery}"
-                  </div>
-                ) : (
-                  searchedMemberUsers
-                    .filter((u) => !activeConversation?.members?.some((m) => m.id === u.id))
-                    .map((u) => (
+              {(() => {
+                const activeMemberIdSet = new Set(
+                  (activeConversation?.members || []).map((m) => String(m.id || m._id || m.user_id))
+                );
+
+                if (searchingMemberUsers) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '24px 0', color: '#7A869A', fontSize: '12px' }}>
+                      Searching users...
+                    </div>
+                  );
+                }
+
+                if (memberSearchQuery.trim()) {
+                  const filteredGlobalUsers = searchedMemberUsers.filter(
+                    (u) => !activeMemberIdSet.has(String(u.id || u._id))
+                  );
+
+                  if (filteredGlobalUsers.length === 0) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '24px 0', color: '#7A869A', fontSize: '12px' }}>
+                        No new users found matching "{memberSearchQuery}"
+                      </div>
+                    );
+                  }
+
+                  return filteredGlobalUsers.map((u) => {
+                    const uId = String(u.id || u._id);
+                    const isSelected = selectedAddMemberUsers.some((sel) => sel.id === uId);
+                    return (
                       <div
-                        key={u.id}
+                        key={uId}
+                        onClick={() => toggleSelectAddMember({ id: uId, name: u.name, email: u.email })}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           padding: '10px 12px',
-                          background: '#FAFBFC',
-                          border: '1px solid #EBECF0',
+                          background: isSelected ? '#DEEBFF' : '#FAFBFC',
+                          border: isSelected ? '1.5px solid #0052CC' : '1px solid #EBECF0',
                           borderRadius: 8,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                           <div
                             style={{
                               width: 32,
                               height: 32,
                               borderRadius: '50%',
-                              background: '#DEEBFF',
-                              color: '#0052CC',
+                              background: isSelected ? '#0052CC' : '#DEEBFF',
+                              color: isSelected ? '#FFFFFF' : '#0052CC',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -1739,7 +2136,7 @@ const ChatPage = () => {
                           >
                             {u.name?.[0]?.toUpperCase()}
                           </div>
-                          <div style={{ minWidth: 0 }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontWeight: 600, fontSize: '13px', color: '#172B4D' }} className="truncate">
                               {u.name}
                             </div>
@@ -1748,41 +2145,74 @@ const ChatPage = () => {
                             </div>
                           </div>
                         </div>
-                        <button
-                          className="jira-btn jira-btn-primary"
-                          style={{ fontSize: '11px', padding: '4px 10px', flexShrink: 0 }}
-                          onClick={() => handleAddMember(u)}
+                        {/* Checkbox */}
+                        <div
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 4,
+                            border: isSelected ? '2px solid #0052CC' : '2px solid #A5ADBA',
+                            background: isSelected ? '#0052CC' : '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginLeft: 8,
+                            transition: 'all 0.15s ease',
+                          }}
                         >
-                          Add
-                        </button>
+                          {isSelected && <Check size={13} color="#FFFFFF" strokeWidth={3} />}
+                        </div>
                       </div>
-                    ))
-                )
-              ) : (
-                /* Default workspace users suggestions */
-                orgMemberList
-                  .filter((m) => !activeConversation?.members?.some((existing) => existing.id === m.user_id))
-                  .map((m) => (
+                    );
+                  });
+                }
+
+                // Default: show ONLY organization members who are not yet in this group
+                const availableOrgMembers = orgMemberList.filter((m) => {
+                  const uid = String(m.user_id || m.user?.id || m.id);
+                  return !activeMemberIdSet.has(uid);
+                });
+
+                if (availableOrgMembers.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '24px 0', color: '#7A869A', fontSize: '12px' }}>
+                      All members of {currentOrg?.name || 'this workspace'} are already in this group.<br />
+                      Use the search bar above to find and add outside users.
+                    </div>
+                  );
+                }
+
+                return availableOrgMembers.map((m) => {
+                  const uId = String(m.user_id || m.user?.id || m.id);
+                  const uName = m.user?.name || m.name || 'Member';
+                  const uEmail = m.user?.email || m.email || '';
+                  const isSelected = selectedAddMemberUsers.some((sel) => sel.id === uId);
+
+                  return (
                     <div
-                      key={m.user_id}
+                      key={uId}
+                      onClick={() => toggleSelectAddMember({ id: uId, name: uName, email: uEmail })}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '10px 12px',
-                        background: '#FAFBFC',
-                        border: '1px solid #EBECF0',
+                        background: isSelected ? '#DEEBFF' : '#FAFBFC',
+                        border: isSelected ? '1.5px solid #0052CC' : '1px solid #EBECF0',
                         borderRadius: 8,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                         <div
                           style={{
                             width: 32,
                             height: 32,
                             borderRadius: '50%',
-                            background: '#DEEBFF',
-                            color: '#0052CC',
+                            background: isSelected ? '#0052CC' : '#DEEBFF',
+                            color: isSelected ? '#FFFFFF' : '#0052CC',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1791,27 +2221,110 @@ const ChatPage = () => {
                             flexShrink: 0,
                           }}
                         >
-                          {m.user?.name?.[0]?.toUpperCase()}
+                          {uName[0]?.toUpperCase()}
                         </div>
-                        <div style={{ minWidth: 0 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: '13px', color: '#172B4D' }} className="truncate">
-                            {m.user?.name}
+                            {uName}
                           </div>
                           <div style={{ fontSize: '11px', color: '#7A869A' }} className="truncate">
-                            {m.user?.email}
+                            {uEmail}
                           </div>
                         </div>
                       </div>
-                      <button
-                        className="jira-btn jira-btn-primary"
-                        style={{ fontSize: '11px', padding: '4px 10px', flexShrink: 0 }}
-                        onClick={() => handleAddMember({ id: m.user_id, name: m.user?.name })}
+                      {/* Checkbox */}
+                      <div
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          border: isSelected ? '2px solid #0052CC' : '2px solid #A5ADBA',
+                          background: isSelected ? '#0052CC' : '#FFFFFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          marginLeft: 8,
+                          transition: 'all 0.15s ease',
+                        }}
                       >
-                        Add
-                      </button>
+                        {isSelected && <Check size={13} color="#FFFFFF" strokeWidth={3} />}
+                      </div>
                     </div>
-                  ))
-              )}
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Selected Users Summary Chips & Batch Add Footer */}
+            {selectedAddMemberUsers.length > 0 && (
+              <div style={{ padding: '8px 16px', background: '#F4F5F7', borderTop: '1px solid #DFE1E6', display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 80, overflowY: 'auto' }}>
+                {selectedAddMemberUsers.map((u) => (
+                  <span
+                    key={u.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      background: '#DEEBFF',
+                      color: '#0052CC',
+                      borderRadius: 12,
+                      padding: '2px 8px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {u.name}
+                    <X
+                      size={12}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelectAddMember(u);
+                      }}
+                    />
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Drawer Footer Actions */}
+            <div
+              style={{
+                padding: '14px 20px',
+                borderTop: '1px solid #DFE1E6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: '#FAFBFC',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#5E6C84' }}>
+                {selectedAddMemberUsers.length > 0
+                  ? `${selectedAddMemberUsers.length} user${selectedAddMemberUsers.length > 1 ? 's' : ''} selected`
+                  : 'Select members to add'}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="jira-btn jira-btn-secondary"
+                  onClick={() => {
+                    setShowAddMember(false);
+                    setSelectedAddMemberUsers([]);
+                    setMemberSearchQuery('');
+                  }}
+                  disabled={addingMembersLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="jira-btn jira-btn-primary"
+                  onClick={handleAddSelectedMembers}
+                  disabled={selectedAddMemberUsers.length === 0 || addingMembersLoading}
+                  style={{ minWidth: 90 }}
+                >
+                  {addingMembersLoading ? 'Adding...' : `Add Members (${selectedAddMemberUsers.length})`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2010,6 +2523,215 @@ const ChatPage = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RIGHT SLIDE-IN DRAWER: Forward Message to Multiple Conversations/People */}
+      {forwardingMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(9, 30, 66, 0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s ease',
+          }}
+          onClick={() => {
+            setForwardingMessage(null);
+            setForwardSelectedConvoIds([]);
+            setForwardSearchQuery('');
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              height: '100%',
+              backgroundColor: '#FFFFFF',
+              boxShadow: '-4px 0 24px rgba(9, 30, 66, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderBottom: '1px solid #DFE1E6',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#172B4D' }}>
+                  Forward Message
+                </h3>
+                <div style={{ fontSize: '12px', color: '#7A869A', marginTop: 2 }}>
+                  Select one or more recipients to forward
+                </div>
+              </div>
+              <button
+                className="btn btn-icon btn-ghost"
+                onClick={() => {
+                  setForwardingMessage(null);
+                  setForwardSelectedConvoIds([]);
+                  setForwardSearchQuery('');
+                }}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Message to forward preview snippet */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #EBECF0', background: '#FAFBFC' }}>
+              <div
+                style={{
+                  padding: '8px 12px',
+                  background: '#FFFFFF',
+                  borderRadius: 6,
+                  border: '1px solid #DFE1E6',
+                  borderLeft: '3px solid #0052CC',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#0052CC', marginBottom: 2 }}>
+                  {forwardingMessage.sender?.name || 'User'}
+                </div>
+                <div style={{ fontSize: '13px', color: '#172B4D', lineHeight: 1.4 }} className="truncate">
+                  {forwardingMessage.content}
+                </div>
+              </div>
+            </div>
+
+            {/* Search Input */}
+            <div style={{ padding: '10px 16px 6px 16px' }}>
+              <div className="search-box" style={{ width: '100%', height: 34 }}>
+                <Search size={14} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search chats or members..."
+                  value={forwardSearchQuery}
+                  onChange={(e) => setForwardSearchQuery(e.target.value)}
+                  style={{ fontSize: '13px' }}
+                />
+                {forwardSearchQuery && (
+                  <button
+                    className="btn btn-icon btn-ghost btn-sm"
+                    onClick={() => setForwardSearchQuery('')}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* List of conversations with checkboxes for multi-forwarding */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {conversations
+                .filter((c) => {
+                  if (!forwardSearchQuery.trim()) return true;
+                  const name = getConversationName(c).toLowerCase();
+                  return name.includes(forwardSearchQuery.trim().toLowerCase());
+                })
+                .map((c) => {
+                  const isSelected = forwardSelectedConvoIds.includes(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => toggleForwardSelectConvo(c.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        background: isSelected ? '#DEEBFF' : '#FFFFFF',
+                        border: isSelected ? '1.5px solid #0052CC' : '1px solid #DFE1E6',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                        <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
+                          {getConversationAvatar(c)}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#172B4D' }} className="truncate">
+                            {getConversationName(c)}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#7A869A' }}>
+                            {c.type === 'direct' ? 'Direct Message' : c.type.includes('broadcast') ? 'Broadcast' : 'Group'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Checkbox indicator */}
+                      <div
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          border: isSelected ? '2px solid #0052CC' : '2px solid #A5ADBA',
+                          background: isSelected ? '#0052CC' : '#FFFFFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          marginLeft: 8,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {isSelected && <Check size={13} color="#FFFFFF" strokeWidth={3} />}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Drawer Footer Actions */}
+            <div
+              style={{
+                padding: '14px 20px',
+                borderTop: '1px solid #DFE1E6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: '#FAFBFC',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#5E6C84' }}>
+                {forwardSelectedConvoIds.length > 0
+                  ? `${forwardSelectedConvoIds.length} recipient${forwardSelectedConvoIds.length > 1 ? 's' : ''} selected`
+                  : 'Select recipients'}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="jira-btn jira-btn-secondary"
+                  onClick={() => {
+                    setForwardingMessage(null);
+                    setForwardSelectedConvoIds([]);
+                    setForwardSearchQuery('');
+                  }}
+                  disabled={forwardingLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="jira-btn jira-btn-primary"
+                  onClick={handleForwardMultiMessage}
+                  disabled={forwardSelectedConvoIds.length === 0 || forwardingLoading}
+                  style={{ minWidth: 90 }}
+                >
+                  {forwardingLoading ? 'Forwarding...' : `Forward (${forwardSelectedConvoIds.length})`}
+                </button>
+              </div>
             </div>
           </div>
         </div>

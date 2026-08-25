@@ -40,9 +40,15 @@ class ConversationResponse(BaseModel):
 # =============================================
 # MESSAGE
 # =============================================
+class ReactionRequest(BaseModel):
+    emoji: str = Field(..., min_length=1, max_length=10)
+
 class MessageCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000)
     type: str = "text"  # text, system, ticket_notification, file
+    reply_to: Optional[dict] = None  # { id, content, sender_name }
+    forward_from: Optional[dict] = None  # { id, content, sender_name }
+    metadata: Optional[dict] = None
 
 class MessageResponse(BaseModel):
     id: str
@@ -52,6 +58,9 @@ class MessageResponse(BaseModel):
     content: str
     type: str = "text"
     read_by: List[str] = []  # List of user_ids who have read this message
+    reply_to: Optional[dict] = None
+    forward_from: Optional[dict] = None
+    reactions: Optional[List[dict]] = []  # List of { emoji, user_id, user_name }
     metadata: Optional[dict] = None  # For ticket notifications, file references, etc.
     created_at: Optional[datetime] = None
 

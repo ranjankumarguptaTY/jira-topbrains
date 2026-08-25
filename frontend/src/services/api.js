@@ -176,10 +176,13 @@ export const conversationsAPI = {
   getMessages: (conversationId, params = {}) => api.get(`/conversations/${conversationId}/messages`, { params }),
   sendMessage: (conversationId, data) => api.post(`/conversations/${conversationId}/messages`, data),
   addMember: (conversationId, userId) => api.post(`/conversations/${conversationId}/members`, { user_id: userId }),
+  addMembers: (conversationId, userIds) => api.post(`/conversations/${conversationId}/members`, { user_ids: userIds }),
   removeMember: (conversationId, userId) => api.delete(`/conversations/${conversationId}/members/${userId}`),
   markRead: (conversationId) => api.post(`/conversations/${conversationId}/read`),
   clearMessages: (conversationId) => api.delete(`/conversations/${conversationId}/messages`),
   blockUser: (conversationId) => api.post(`/conversations/${conversationId}/block`),
+  reactToMessage: (conversationId, messageId, emoji) =>
+    api.post(`/conversations/${conversationId}/messages/${messageId}/react`, { emoji }),
 };
 
 // =============================================

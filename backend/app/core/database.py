@@ -54,8 +54,9 @@ def serialize_doc(doc: dict) -> dict:
             doc[k] = serialize_doc(v)
         elif isinstance(v, list):
             doc[k] = [serialize_doc(item) if isinstance(item, dict) else (str(item) if isinstance(item, ObjectId) else item) for item in v]
-    doc["id"] = str(doc.get("_id", ""))
-    doc.pop("_id", None)
+    if "_id" in doc:
+        doc["id"] = str(doc.get("_id", ""))
+        doc.pop("_id", None)
     return doc
 
 def serialize_docs(docs: list) -> list:

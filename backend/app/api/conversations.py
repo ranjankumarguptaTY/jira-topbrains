@@ -5,7 +5,7 @@ from app.core.database import get_database, serialize_doc, serialize_docs
 from app.core.security import get_current_user
 from app.schemas.conversation import (
     ConversationCreate, ConversationUpdate, ConversationResponse,
-    MessageCreate, MessageResponse,
+    MessageCreate, MessageResponse, ReactionRequest
 )
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
@@ -372,6 +372,10 @@ async def send_message(
         "sender_id": current_user["id"],
         "content": safe_content,
         "type": msg_in.type,
+        "reply_to": msg_in.reply_to,
+        "forward_from": msg_in.forward_from,
+        "metadata": msg_in.metadata,
+        "reactions": [],
         "read_by": [current_user["id"]],
         "created_at": now,
     }
@@ -435,6 +439,93 @@ async def send_message(
             )
 
     return doc
+
+
+@router.post("/{conversation_id}/messages/{message_id}/react")
+async def react_to_message(
+    conversation_id: str,
+    message_id: str,
+    reaction_in: ReactionRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_database)
+):
+    """Toggle a reaction (emoji) on a message by the current user."""
+    from app.core.security import is_super_admin
+    is_super = is_super_admin(current_user)
+
+    # Find message by ObjectId or string ID
+    msg_id_match = ObjectId(message_id) if ObjectId.is_valid(message_id) else message_id
+    msg = await db.messages.find_one({"_id": msg_id_match})
+    if not msg and isinstance(msg_id_match, ObjectId):
+        msg = await db.messages.find_one({"_id": str(message_id)})
+    if not msg:
+        msg = await db.messages.find_one({"id": str(message_id)})
+
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    target_convo_id = str(msg.get("conversation_id", conversation_id))
+
+    # Verify conversation membership
+    membership = await db.conversation_members.find_one({
+        "conversation_id": {"$in": [target_convo_id, ObjectId(target_convo_id)] if ObjectId.is_valid(target_convo_id) else [target_convo_id]},
+        "user_id": {"$in": [str(current_user["id"]), ObjectId(str(current_user["id"]))] if ObjectId.is_valid(str(current_user["id"])) else [str(current_user["id"])]}
+    })
+    if not membership and not is_super:
+        raise HTTPException(status_code=403, detail="Not a member of this conversation")
+
+    reactions = msg.get("reactions") or []
+    # Check if user already reacted with this exact emoji -> toggle off, else toggle on
+    existing_idx = next(
+        (i for i, r in enumerate(reactions) if str(r.get("user_id")) == str(current_user["id"]) and r.get("emoji") == reaction_in.emoji),
+        None
+    )
+
+    if existing_idx is not None:
+        # Remove existing reaction
+        reactions.pop(existing_idx)
+    else:
+        # Add new reaction
+        reactions.append({
+            "emoji": reaction_in.emoji,
+            "user_id": str(current_user["id"]),
+            "user_name": current_user.get("name", "User"),
+        })
+
+    await db.messages.update_one(
+        {"_id": msg["_id"]},
+        {"$set": {"reactions": reactions}}
+    )
+
+    # Broadcast reaction update to conversation members
+    from app.api.websocket import manager
+    from app.core.events import _create_notification
+
+    await manager.broadcast_to_conversation(target_convo_id, {
+        "type": "CHAT_MESSAGE_REACTED",
+        "conversation_id": target_convo_id,
+        "message_id": message_id,
+        "reactions": reactions,
+    })
+
+    # Trigger notification to message author if someone else added a reaction
+    if existing_idx is None and msg.get("sender_id") and str(msg.get("sender_id")) != str(current_user["id"]):
+        author_id = str(msg["sender_id"])
+        reactor_name = current_user.get("name", "Someone")
+        snippet = msg.get("content", "")[:60]
+        snippet_text = f' "{snippet}..."' if snippet else ""
+        await _create_notification(
+            db=db,
+            user_id=author_id,
+            notif_type="chat_reaction",
+            title=f"{reactor_name} reacted {reaction_in.emoji} to your message",
+            body=f"{reactor_name} reacted with {reaction_in.emoji} to your message{snippet_text}",
+            entity_type="conversation",
+            entity_id=target_convo_id,
+            metadata={"reactor_id": current_user["id"], "message_id": str(msg["_id"]), "emoji": reaction_in.emoji}
+        )
+
+    return {"status": "ok", "reactions": reactions}
 
 
 @router.post("/{conversation_id}/read")
@@ -508,23 +599,26 @@ async def add_conversation_member(
         if convo.get("created_by") != current_user["id"] and not is_super:
             raise HTTPException(status_code=403, detail="Only the group admin (creator) can add members.")
 
-    user_id = body.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id required")
+    user_ids = body.get("user_ids") or ([body.get("user_id")] if body.get("user_id") else [])
+    if not user_ids:
+        raise HTTPException(status_code=400, detail="user_id or user_ids required")
 
-    existing = await db.conversation_members.find_one({
-        "conversation_id": conversation_id, "user_id": user_id
-    })
-    if existing:
-        raise HTTPException(status_code=400, detail="User is already a member")
+    now = datetime.now(timezone.utc)
+    added_count = 0
+    for uid in user_ids:
+        existing = await db.conversation_members.find_one({
+            "conversation_id": conversation_id, "user_id": str(uid)
+        })
+        if not existing:
+            await db.conversation_members.insert_one({
+                "conversation_id": conversation_id,
+                "user_id": str(uid),
+                "joined_at": now,
+                "last_read_at": now,
+            })
+            added_count += 1
 
-    await db.conversation_members.insert_one({
-        "conversation_id": conversation_id,
-        "user_id": user_id,
-        "joined_at": datetime.now(timezone.utc),
-        "last_read_at": datetime.now(timezone.utc),
-    })
-    return {"status": "added"}
+    return {"status": "added", "added_count": added_count}
 
 
 @router.delete("/{conversation_id}/members/{user_id}")
