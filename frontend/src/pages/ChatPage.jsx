@@ -33,6 +33,7 @@ import {
   Briefcase,
   ChevronDown,
   ChevronRight,
+  UserMinus,
 } from 'lucide-react';
 import './ChatPage.css';
 
@@ -1614,52 +1615,203 @@ const ChatPage = () => {
         )}
       </div>
 
-      {/* MODAL: Add Member to Conversation */}
+      {/* RIGHT SLIDE-IN DRAWER: Add Member to Group */}
       {showAddMember && (
-        <div className="modal-backdrop">
-          <div className="modal-card" style={{ maxWidth: 440 }}>
-            <h2 className="modal-title">Add Member to Channel</h2>
-            <div style={{ position: 'relative', margin: '14px 0' }}>
-              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#7A869A' }} />
-              <input
-                type="text"
-                placeholder="Search user to add..."
-                value={memberSearchQuery}
-                onChange={(e) => setMemberSearchQuery(e.target.value)}
-                className="jira-input"
-                style={{ paddingLeft: 30, fontSize: '13px' }}
-                autoFocus
-              />
-            </div>
-            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {searchedMemberUsers.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => handleAddMember(u)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px',
-                    border: '1px solid #DFE1E6',
-                    borderRadius: 6,
-                    background: '#FFF',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                >
-                  <div className="avatar avatar-sm">{u.name?.[0]}</div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '12px' }}>{u.name}</div>
-                    <div style={{ fontSize: '10px', color: '#7A869A' }}>{u.email}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="jira-btn jira-btn-secondary" onClick={() => setShowAddMember(false)}>
-                Cancel
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(9, 30, 66, 0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s ease',
+          }}
+          onClick={() => setShowAddMember(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '380px',
+              height: '100%',
+              backgroundColor: '#FFFFFF',
+              boxShadow: '-4px 0 24px rgba(9, 30, 66, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderBottom: '1px solid #DFE1E6',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#172B4D' }}>
+                  Add Member to Group
+                </h3>
+                <div style={{ fontSize: '12px', color: '#7A869A', marginTop: 2 }}>
+                  Search users globally or select from your workspace
+                </div>
+              </div>
+              <button
+                className="btn btn-icon btn-ghost"
+                onClick={() => setShowAddMember(false)}
+                title="Close"
+              >
+                <X size={18} />
               </button>
+            </div>
+
+            {/* Global Search Input */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #EBECF0' }}>
+              <div style={{ position: 'relative' }}>
+                <Search
+                  size={14}
+                  style={{
+                    position: 'absolute',
+                    left: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#7A869A',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Search users globally by name, email, company..."
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  className="jira-input"
+                  style={{ paddingLeft: 32, fontSize: '13px', width: '100%' }}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* User List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {searchingMemberUsers ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: '#7A869A', fontSize: '12px' }}>
+                  Searching users...
+                </div>
+              ) : memberSearchQuery.trim() ? (
+                searchedMemberUsers.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px 0', color: '#7A869A', fontSize: '12px' }}>
+                    No users found matching "{memberSearchQuery}"
+                  </div>
+                ) : (
+                  searchedMemberUsers
+                    .filter((u) => !activeConversation?.members?.some((m) => m.id === u.id))
+                    .map((u) => (
+                      <div
+                        key={u.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          background: '#FAFBFC',
+                          border: '1px solid #EBECF0',
+                          borderRadius: 8,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              background: '#DEEBFF',
+                              color: '#0052CC',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {u.name?.[0]?.toUpperCase()}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '13px', color: '#172B4D' }} className="truncate">
+                              {u.name}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#7A869A' }} className="truncate">
+                              {u.email} {u.company_name && `· ${u.company_name}`}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          className="jira-btn jira-btn-primary"
+                          style={{ fontSize: '11px', padding: '4px 10px', flexShrink: 0 }}
+                          onClick={() => handleAddMember(u)}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ))
+                )
+              ) : (
+                /* Default workspace users suggestions */
+                orgMemberList
+                  .filter((m) => !activeConversation?.members?.some((existing) => existing.id === m.user_id))
+                  .map((m) => (
+                    <div
+                      key={m.user_id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        background: '#FAFBFC',
+                        border: '1px solid #EBECF0',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: '#DEEBFF',
+                            color: '#0052CC',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {m.user?.name?.[0]?.toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '13px', color: '#172B4D' }} className="truncate">
+                            {m.user?.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#7A869A' }} className="truncate">
+                            {m.user?.email}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        className="jira-btn jira-btn-primary"
+                        style={{ fontSize: '11px', padding: '4px 10px', flexShrink: 0 }}
+                        onClick={() => handleAddMember({ id: m.user_id, name: m.user?.name })}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ))
+              )}
             </div>
           </div>
         </div>
@@ -1791,10 +1943,18 @@ const ChatPage = () => {
                     </div>
 
                     {!isMe && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {/* Direct Message Icon with Tooltip */}
                         <button
-                          className="jira-btn jira-btn-primary"
-                          style={{ fontSize: '11px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                          className="btn btn-icon btn-ghost"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 6,
+                            color: '#0052CC',
+                            backgroundColor: '#EBF5FF',
+                          }}
+                          title={`Message ${member.name}`}
                           onClick={async () => {
                             try {
                               setShowMembersModal(false);
@@ -1810,29 +1970,39 @@ const ChatPage = () => {
                             }
                           }}
                         >
-                          <MessageCircle size={12} />
-                          <span>Message</span>
+                          <MessageCircle size={15} />
                         </button>
 
+                        {/* Remove Member Icon with Tooltip for Group Admin */}
                         {(activeConversation?.type === 'group' || activeConversation?.type === 'channel') &&
                           (activeConversation?.created_by === currentUser?.id || currentUser?.role === 'super_admin') && (
                             <button
-                              className="jira-btn jira-btn-danger"
-                              style={{ fontSize: '11px', padding: '4px 8px' }}
-                              onClick={async () => {
-                                if (window.confirm(`Remove ${member.name} from this group?`)) {
-                                  try {
+                              className="btn btn-icon btn-ghost"
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 6,
+                                color: '#DE350B',
+                                backgroundColor: '#FFEBE6',
+                              }}
+                              title={`Remove ${member.name} from group`}
+                              onClick={() => {
+                                showConfirm({
+                                  title: `Remove ${member.name}?`,
+                                  message: `Are you sure you want to remove ${member.name} from this group? They will no longer have access to group messages.`,
+                                  confirmText: 'Remove Member',
+                                  cancelText: 'Cancel',
+                                  variant: 'danger',
+                                  onConfirm: async () => {
                                     await conversationsAPI.removeMember(conversationId, member.id);
                                     const updated = await conversationsAPI.get(conversationId);
                                     setActiveConversation(updated.data);
                                     loadConversations(false);
-                                  } catch (err) {
-                                    alert('Failed to remove member.');
-                                  }
-                                }
+                                  },
+                                });
                               }}
                             >
-                              Remove
+                              <UserMinus size={15} />
                             </button>
                           )}
                       </div>
