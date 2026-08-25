@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useWebSocket } from '../context/WebSocketContext';
+import { searchAPI } from '../services/api';
 import {
   Home,
   MessageCircle,
@@ -25,6 +26,11 @@ import {
   Building,
   Check,
   ChevronsUpDown,
+  User,
+  Hash,
+  CheckCircle2,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { useModal } from '../context/ModalContext';
 import { NotificationPanel } from '../components/layout/NotificationPanel';
@@ -42,7 +48,78 @@ const AppShell = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
+
+  // --- Context-Aware Search State ---
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  // Compute search scope based on current route
+  const getSearchScope = () => {
+    if (location.pathname.startsWith('/chat')) return 'chat';
+    if (location.pathname.startsWith('/projects') || location.pathname.startsWith('/my-work') || location.pathname === '/') {
+      return 'jira';
+    }
+    return 'all';
+  };
+
+  // Keyboard shortcut (⌘K or Ctrl+K) to focus search
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        const input = searchContainerRef.current?.querySelector('input');
+        input?.focus();
+      }
+      if (e.key === 'Escape') {
+        setShowSearchDropdown(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Debounced search trigger (250ms, min 2 chars)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults(null);
+      setIsSearching(false);
+      setShowSearchDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const scope = getSearchScope();
+    const activeOrgId = currentOrg?.id || null;
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchAPI.search(q, scope, activeOrgId);
+        setSearchResults(res.data);
+        setShowSearchDropdown(true);
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, location.pathname, currentOrg?.id]);
 
   const navItems = [
     { path: '/', icon: Home, label: 'Home', exact: true },
@@ -123,16 +200,285 @@ const AppShell = () => {
         </div>
 
         <div className="app-navbar-center">
-          <div className="app-search">
-            <Search size={15} className="app-search-icon" />
+          <div className="app-search" ref={searchContainerRef}>
+            {isSearching ? (
+              <Loader2 size={15} className="app-search-icon" style={{ animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <Search size={15} className="app-search-icon" />
+            )}
             <input
               type="text"
-              placeholder="Search conversations, projects, issues..."
+              placeholder={
+                location.pathname.startsWith('/chat')
+                  ? 'Search users, messages, conversations...'
+                  : currentOrg
+                  ? `Search ${currentOrg.name} issues & projects...`
+                  : 'Search issues, projects, chats...'
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => {
+                if (searchQuery.trim().length >= 3 && searchResults) {
+                  setShowSearchDropdown(true);
+                }
+              }}
               className="app-search-input"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults(null);
+                  setShowSearchDropdown(false);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#7A869A',
+                  cursor: 'pointer',
+                  padding: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
             <kbd className="app-search-shortcut">⌘K</kbd>
+
+            {/* === UNIFIED CONTEXT-AWARE SEARCH DROPDOWN === */}
+            {showSearchDropdown && searchResults && (
+              <div className="app-search-dropdown">
+                {/* 1. JIRA ISSUES / TICKETS */}
+                {searchResults.issues?.length > 0 && (
+                  <div className="app-search-section">
+                    <div className="app-search-section-title">
+                      <CheckCircle2 size={12} color="#0052CC" />
+                      <span>Jira Tickets ({searchResults.issues.length})</span>
+                    </div>
+                    {searchResults.issues.map((issue) => (
+                      <button
+                        key={issue.id}
+                        type="button"
+                        className="app-search-item"
+                        onClick={() => {
+                          navigate(`/projects/${issue.project_id}?issue=${issue.id}`);
+                          setShowSearchDropdown(false);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <div className="app-search-item-left">
+                          <span
+                            className="badge badge-primary"
+                            style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px' }}
+                          >
+                            {issue.key}
+                          </span>
+                          <div className="app-search-item-info">
+                            <div className="app-search-item-title truncate">{issue.summary}</div>
+                            <div className="app-search-item-subtitle truncate">
+                              Status: <b>{issue.status?.toUpperCase()}</b> · Assignee:{' '}
+                              {issue.assignee?.name || 'Unassigned'}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 2. JIRA PROJECTS */}
+                {searchResults.projects?.length > 0 && (
+                  <div className="app-search-section">
+                    <div className="app-search-section-title">
+                      <FolderKanban size={12} color="#00875A" />
+                      <span>Projects ({searchResults.projects.length})</span>
+                    </div>
+                    {searchResults.projects.map((proj) => (
+                      <button
+                        key={proj.id}
+                        type="button"
+                        className="app-search-item"
+                        onClick={() => {
+                          navigate(`/projects/${proj.id}`);
+                          setShowSearchDropdown(false);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <div className="app-search-item-left">
+                          <div
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 4,
+                              background: '#E3FCEF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#006644',
+                              fontWeight: 700,
+                              fontSize: '11px',
+                            }}
+                          >
+                            {proj.key}
+                          </div>
+                          <div className="app-search-item-info">
+                            <div className="app-search-item-title truncate">{proj.name}</div>
+                            <div className="app-search-item-subtitle truncate">
+                              Key: {proj.key} · Lead: {proj.lead?.name || 'Project Lead'}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 3. CHAT USERS */}
+                {searchResults.users?.length > 0 && (
+                  <div className="app-search-section">
+                    <div className="app-search-section-title">
+                      <User size={12} color="#6554C0" />
+                      <span>People ({searchResults.users.length})</span>
+                    </div>
+                    {searchResults.users.map((usr) => (
+                      <button
+                        key={usr.id}
+                        type="button"
+                        className="app-search-item"
+                        onClick={async () => {
+                          try {
+                            const { conversationsAPI } = await import('../services/api');
+                            const res = await conversationsAPI.create({
+                              type: 'direct',
+                              member_ids: [usr.id],
+                            });
+                            navigate(`/chat/${res.data.id}`);
+                          } catch (err) {
+                            console.error('Failed to create/open conversation:', err);
+                            navigate('/chat');
+                          }
+                          setShowSearchDropdown(false);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <div className="app-search-item-left">
+                          <div
+                            style={{
+                              width: 26,
+                              height: 26,
+                              borderRadius: '50%',
+                              background: '#DEEBFF',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              color: '#0052CC',
+                            }}
+                          >
+                            {usr.name?.[0]?.toUpperCase()}
+                          </div>
+                          <div className="app-search-item-info">
+                            <div className="app-search-item-title truncate">
+                              {usr.name}
+                              {usr.company_name && (
+                                <span style={{ fontSize: '10px', color: '#5E6C84', fontWeight: 400 }}>
+                                  ({usr.company_name})
+                                </span>
+                              )}
+                            </div>
+                            <div className="app-search-item-subtitle truncate">{usr.email}</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 4. CHAT CONVERSATIONS & CHANNELS */}
+                {searchResults.conversations?.length > 0 && (
+                  <div className="app-search-section">
+                    <div className="app-search-section-title">
+                      <Hash size={12} color="#0052CC" />
+                      <span>Channels & Chats ({searchResults.conversations.length})</span>
+                    </div>
+                    {searchResults.conversations.map((convo) => (
+                      <button
+                        key={convo.id}
+                        type="button"
+                        className="app-search-item"
+                        onClick={() => {
+                          navigate(`/chat/${convo.id}`);
+                          setShowSearchDropdown(false);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <div className="app-search-item-left">
+                          <Hash size={16} color="#0052CC" />
+                          <div className="app-search-item-info">
+                            <div className="app-search-item-title truncate">
+                              #{convo.name || 'Conversation'}
+                            </div>
+                            {convo.description && (
+                              <div className="app-search-item-subtitle truncate">
+                                {convo.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 5. MATCHED CHAT MESSAGES */}
+                {searchResults.messages?.length > 0 && (
+                  <div className="app-search-section">
+                    <div className="app-search-section-title">
+                      <FileText size={12} color="#42526E" />
+                      <span>Message Matches ({searchResults.messages.length})</span>
+                    </div>
+                    {searchResults.messages.map((msg) => (
+                      <button
+                        key={msg.id}
+                        type="button"
+                        className="app-search-item"
+                        onClick={() => {
+                          navigate(`/chat/${msg.conversation_id}`);
+                          setShowSearchDropdown(false);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <div className="app-search-item-left">
+                          <div className="app-search-item-info">
+                            <div className="app-search-item-title truncate">
+                              {msg.sender?.name || 'Member'}:
+                            </div>
+                            <div className="app-search-item-subtitle truncate" style={{ color: '#172B4D' }}>
+                              "{msg.content}"
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* NO RESULTS FOUND */}
+                {searchResults.issues?.length === 0 &&
+                  searchResults.projects?.length === 0 &&
+                  searchResults.users?.length === 0 &&
+                  searchResults.conversations?.length === 0 &&
+                  searchResults.messages?.length === 0 && (
+                    <div className="app-search-empty">
+                      No results found for "<b>{searchQuery}</b>"
+                      {currentOrg ? ` in ${currentOrg.name}` : ''}.
+                    </div>
+                  )}
+              </div>
+            )}
           </div>
         </div>
 

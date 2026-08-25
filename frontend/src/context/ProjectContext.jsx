@@ -78,6 +78,28 @@ export const ProjectProvider = ({ children }) => {
     }
   }, [currentProject, refreshKey]);
 
+  // Auto-sync project selection from URL path (/projects/:projectId)
+  useEffect(() => {
+    const pathParts = window.location.pathname.split('/');
+    const pIndex = pathParts.indexOf('projects');
+    if (pIndex !== -1 && pathParts[pIndex + 1]) {
+      const urlProjId = pathParts[pIndex + 1];
+      const matched = projects.find((p) => p.id === urlProjId || p.key?.toLowerCase() === urlProjId.toLowerCase());
+      if (matched && (!currentProject || currentProject.id !== matched.id)) {
+        setCurrentProject(matched);
+      }
+    }
+  }, [window.location.pathname, projects]);
+
+  // Auto-open IssueDetailModal if ?issue=id is present in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const issueIdFromUrl = params.get('issue');
+    if (issueIdFromUrl) {
+      setSelectedIssueId(issueIdFromUrl);
+    }
+  }, [window.location.search]);
+
   const selectProject = (project) => {
     setCurrentProject(project);
     // Reset filters

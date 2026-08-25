@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useModal } from '../context/ModalContext';
 import { authAPI, conversationsAPI, guestRequestsAPI, fileTransfersAPI, orgAPI } from '../services/api';
 import {
   MessageCircle,
@@ -51,6 +52,7 @@ const ChatPage = () => {
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const { currentUser, currentOrg } = useAuth();
+  const { showConfirm } = useModal();
   const ws = useWebSocket();
   const { clearConversationNotifications } = useNotifications();
 
@@ -99,6 +101,8 @@ const ChatPage = () => {
 
   const [guestRequests, setGuestRequests] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [newChatTab, setNewChatTab] = useState('direct'); // 'direct' | 'group'
   const [groupName, setGroupName] = useState('');
   const [groupSelectedMembers, setGroupSelectedMembers] = useState([]);
@@ -116,6 +120,17 @@ const ChatPage = () => {
   const [loadingConvos, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Lock background scroll when modals or drawers are open
+  useEffect(() => {
+    const isAnyModalOpen = showMembersModal || showAddMember || showNewChat;
+    if (isAnyModalOpen) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
+    return () => document.body.classList.remove('modal-open');
+  }, [showMembersModal, showAddMember, showNewChat]);
 
   // Search registered users by name or email
   useEffect(() => {
@@ -227,15 +242,15 @@ const ChatPage = () => {
   };
 
   // Load conversations list
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (showSkeleton = false) => {
     try {
-      setLoadingConversations(true);
+      if (showSkeleton) setLoadingConversations(true);
       const res = await conversationsAPI.list();
       setConversations(res.data || []);
     } catch (err) {
       console.error('Failed to load conversations', err);
     } finally {
-      setLoadingConversations(false);
+      if (showSkeleton) setLoadingConversations(false);
     }
   }, []);
 
@@ -250,9 +265,16 @@ const ChatPage = () => {
   }, []);
 
   useEffect(() => {
-    loadConversations();
+    loadConversations(true);
     loadGuestRequests();
-  }, [loadConversations, loadGuestRequests]);
+  }, [loadGuestRequests]);
+
+  // Subtle background sync when conversationId changes without resetting scroll
+  useEffect(() => {
+    if (conversationId) {
+      loadConversations(false);
+    }
+  }, [conversationId, loadConversations]);
 
   // Load messages for active conversation
   useEffect(() => {
@@ -402,10 +424,25 @@ const ChatPage = () => {
       loadGuestRequests();
     });
 
+    const unsubPresence = ws.subscribe('USER_PRESENCE_CHANGED', (data) => {
+      if (data?.user_id) {
+        setOnlineUsers((prev) => {
+          const next = new Set(prev);
+          if (data.status === 'online') {
+            next.add(data.user_id);
+          } else {
+            next.delete(data.user_id);
+          }
+          return next;
+        });
+      }
+    });
+
     return () => {
       unsubMsg();
       unsubRead();
       unsubGuest();
+      unsubPresence();
     };
   }, [ws, conversationId, currentUser, loadConversations, loadGuestRequests]);
 
@@ -653,12 +690,20 @@ const ChatPage = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  const getOtherUser = (convo) => {
+    if (!convo || convo.type !== 'direct') return null;
+    return convo.members?.find((m) => String(m.id || m._id) !== String(currentUser?.id || currentUser?._id)) || convo.members?.[0] || null;
+  };
+
   const getConversationName = (convo) => {
-    if (convo.name) return convo.name;
     if (convo.type === 'direct') {
-      const other = convo.members?.find((m) => m.id !== currentUser?.id);
-      return other?.name || 'Direct Message';
+      const other = getOtherUser(convo);
+      if (other?.name) {
+        return other.company_name ? `${other.name} (${other.company_name})` : other.name;
+      }
+      return convo.name || 'Direct Message';
     }
+    if (convo.name) return convo.name;
     return convo.members?.map((m) => m.name).join(', ') || 'Group Chat';
   };
 
@@ -668,8 +713,28 @@ const ChatPage = () => {
     if (convo.type === 'project_broadcast') return <Briefcase size={16} color="#6554C0" />;
     if (convo.type === 'channel') return <Hash size={16} />;
     if (convo.type === 'group') return <Users size={16} color="#0052CC" />;
-    const other = convo.members?.find((m) => m.id !== currentUser?.id);
+    const other = getOtherUser(convo);
     if (other?.avatar_url) return <img src={other.avatar_url} alt="" />;
+    if (other?.name) {
+      return (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: '50%',
+            background: '#DEEBFF',
+            color: '#0052CC',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            fontWeight: 700,
+          }}
+        >
+          {other.name[0]?.toUpperCase()}
+        </div>
+      );
+    }
     return <User size={16} />;
   };
 
@@ -740,7 +805,17 @@ const ChatPage = () => {
               color: hasUnread ? '#0052CC' : '#7A869A',
             }}
           >
-            {convo.last_message?.content || 'No messages yet'}
+            {convo.last_message?.content ? (
+              convo.last_message.sender_id === currentUser?.id ? (
+                <span>You: {convo.last_message.content}</span>
+              ) : (
+                convo.last_message.content
+              )
+            ) : convo.is_pending_request ? (
+              <span style={{ color: '#0052CC', fontStyle: 'italic' }}>Chat request sent · Pending reply</span>
+            ) : (
+              'No messages yet'
+            )}
           </div>
         </div>
         <div className="conversation-meta">
@@ -1128,9 +1203,51 @@ const ChatPage = () => {
                     </span>
                   )}
                 </div>
-                <span className="chat-header-members" style={{ fontSize: '11px', color: '#7A869A' }}>
-                  {activeConversation?.members?.length || 0} members · All members can broadcast
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  {activeConversation?.type === 'direct' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11px' }}>
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: onlineUsers.has(getOtherUser(activeConversation)?.id) ? '#36B37E' : '#97A0AF',
+                          display: 'inline-block',
+                        }}
+                      />
+                      <span style={{ color: onlineUsers.has(getOtherUser(activeConversation)?.id) ? '#006644' : '#5E6C84', fontWeight: 500 }}>
+                        {onlineUsers.has(getOtherUser(activeConversation)?.id) ? 'Online' : 'Away'}
+                      </span>
+                      {getOtherUser(activeConversation)?.company_name && (
+                        <span style={{ color: '#7A869A' }}>· {getOtherUser(activeConversation)?.company_name}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowMembersModal(true)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        padding: 0,
+                        fontSize: '11px',
+                        color: '#0052CC',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        textDecoration: 'none',
+                      }}
+                      title="View all members"
+                    >
+                      <Users size={12} />
+                      <span style={{ textDecoration: 'underline' }}>
+                        {activeConversation?.members?.length || 0} members
+                      </span>
+                      <span style={{ color: '#7A869A', textDecoration: 'none' }}>· Click to view & message members</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="chat-header-actions">
                 {showMessageSearch ? (
@@ -1163,41 +1280,95 @@ const ChatPage = () => {
                   </button>
                 )}
 
-                <div className="chat-more-menu-container" ref={moreMenuRef}>
-                  <button
-                    className="btn btn-icon btn-ghost"
-                    title="More options"
-                    onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-                  {showMoreMenu && (
-                    <div className="chat-dropdown-menu">
-                      {(activeConversation?.type === 'channel' || activeConversation?.type === 'group') && (
-                        <button
-                          className="chat-dropdown-item"
-                          onClick={() => {
-                            setShowAddMember(true);
-                            setShowMoreMenu(false);
-                          }}
-                        >
-                          Add Member
-                        </button>
-                      )}
+                {/* Three-dot options menu (only shown if options are available: Group Chats & 1:1 Direct Chats) */}
+                {activeConversation?.type !== 'org_broadcast' &&
+                  activeConversation?.type !== 'team_broadcast' &&
+                  activeConversation?.type !== 'project_broadcast' && (
+                    <div className="chat-more-menu-container" ref={moreMenuRef}>
                       <button
-                        className="chat-dropdown-item chat-dropdown-item-danger"
-                        onClick={() => {
-                          setShowClearConfirm(true);
-                          setShowMoreMenu(false);
-                        }}
+                        className="btn btn-icon btn-ghost"
+                        title="More options"
+                        onClick={() => setShowMoreMenu(!showMoreMenu)}
                       >
-                        Clear Chat
+                        <MoreVertical size={16} />
                       </button>
+                      {showMoreMenu && (
+                        <div className="chat-dropdown-menu">
+                          {/* Group admin can add members */}
+                          {(activeConversation?.type === 'channel' || activeConversation?.type === 'group') &&
+                            (activeConversation?.created_by === currentUser?.id || currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                              <button
+                                className="chat-dropdown-item"
+                                onClick={() => {
+                                  setShowAddMember(true);
+                                  setShowMoreMenu(false);
+                                }}
+                              >
+                                Add Member
+                              </button>
+                            )}
+
+                          {/* Clear Chat: Prohibited on broadcast channels, allowed for Group Creator / Admin & 1:1 Direct chats */}
+                          {(activeConversation?.type === 'direct' ||
+                            activeConversation?.created_by === currentUser?.id ||
+                            currentUser?.role === 'admin' ||
+                            currentUser?.role === 'super_admin') && (
+                            <button
+                              className="chat-dropdown-item chat-dropdown-item-danger"
+                              onClick={() => {
+                                setShowMoreMenu(false);
+                                showConfirm({
+                                  title: activeConversation?.type === 'direct' ? 'Clear Chat History?' : 'Clear Group Chat?',
+                                  message:
+                                    activeConversation?.type === 'direct'
+                                      ? 'This will clear the chat history for you only. Other participants will still see their message history.'
+                                      : 'Are you sure you want to clear chat for this entire group?',
+                                  confirmText: 'Clear Chat',
+                                  cancelText: 'Cancel',
+                                  variant: 'danger',
+                                  onConfirm: async () => {
+                                    await conversationsAPI.clearMessages(conversationId);
+                                    setMessages([]);
+                                    loadConversations(false);
+                                  },
+                                });
+                              }}
+                            >
+                              Clear Chat
+                            </button>
+                          )}
+
+                          {/* Direct 1:1 Block User */}
+                          {activeConversation?.type === 'direct' && (
+                            <button
+                              className="chat-dropdown-item chat-dropdown-item-danger"
+                              onClick={() => {
+                                setShowMoreMenu(false);
+                                const other = getOtherUser(activeConversation);
+                                showConfirm({
+                                  title: `Block ${other?.name || 'User'}?`,
+                                  message: `Are you sure you want to block ${other?.name || 'this user'}? They will no longer be able to send you messages.`,
+                                  confirmText: 'Block User',
+                                  cancelText: 'Cancel',
+                                  variant: 'danger',
+                                  onConfirm: async () => {
+                                    await conversationsAPI.blockUser(conversationId);
+                                    alert(`${other?.name || 'User'} has been blocked.`);
+                                    navigate('/chat');
+                                    loadConversations(false);
+                                  },
+                                });
+                              }}
+                            >
+                              Block User
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
-            </div>
 
             {/* Messages */}
             <div className="chat-messages" ref={chatMessagesRef} onScroll={handleScroll}>
@@ -1489,6 +1660,186 @@ const ChatPage = () => {
               <button className="jira-btn jira-btn-secondary" onClick={() => setShowAddMember(false)}>
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RIGHT SLIDE-IN DRAWER: View All Channel/Broadcast Members & Message Directly */}
+      {showMembersModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(9, 30, 66, 0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s ease',
+          }}
+          onClick={() => setShowMembersModal(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '380px',
+              height: '100%',
+              backgroundColor: '#FFFFFF',
+              boxShadow: '-4px 0 24px rgba(9, 30, 66, 0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderBottom: '1px solid #DFE1E6',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#172B4D' }}>
+                  Channel Members
+                </h3>
+                <div style={{ fontSize: '12px', color: '#7A869A', marginTop: 2 }}>
+                  {activeConversation?.members?.length || 0} participants in #{activeConversation?.name || 'Channel'}
+                </div>
+              </div>
+              <button
+                className="btn btn-icon btn-ghost"
+                onClick={() => setShowMembersModal(false)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Drawer Member List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {activeConversation?.members?.map((member) => {
+                const isMe = member.id === currentUser?.id;
+                const isOnline = onlineUsers.has(member.id);
+
+                return (
+                  <div
+                    key={member.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      background: '#FAFBFC',
+                      border: '1px solid #EBECF0',
+                      borderRadius: 8,
+                      transition: 'background 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ position: 'relative' }}>
+                        <div
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: '50%',
+                            background: '#DEEBFF',
+                            color: '#0052CC',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {member.name?.[0]?.toUpperCase()}
+                        </div>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            right: 0,
+                            width: 9,
+                            height: 9,
+                            borderRadius: '50%',
+                            backgroundColor: isOnline ? '#36B37E' : '#97A0AF',
+                            border: '2px solid #FFF',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#172B4D', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>{member.name}</span>
+                          {isMe && (
+                            <span style={{ fontSize: '10px', color: '#0052CC', background: '#DEEBFF', padding: '1px 5px', borderRadius: 3, fontWeight: 700 }}>
+                              You
+                            </span>
+                          )}
+                          {member.role === 'admin' && (
+                            <span style={{ fontSize: '10px', color: '#006644', background: '#E3FCEF', padding: '1px 5px', borderRadius: 3, fontWeight: 700 }}>
+                              Admin
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#5E6C84' }}>
+                          {member.company_name || (isOnline ? 'Online' : 'Away')}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!isMe && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          className="jira-btn jira-btn-primary"
+                          style={{ fontSize: '11px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                          onClick={async () => {
+                            try {
+                              setShowMembersModal(false);
+                              const res = await conversationsAPI.create({
+                                type: 'direct',
+                                member_ids: [member.id],
+                              });
+                              navigate(`/chat/${res.data.id}`);
+                              loadConversations(false);
+                            } catch (err) {
+                              console.error('Failed to initiate direct message', err);
+                              navigate('/chat');
+                            }
+                          }}
+                        >
+                          <MessageCircle size={12} />
+                          <span>Message</span>
+                        </button>
+
+                        {(activeConversation?.type === 'group' || activeConversation?.type === 'channel') &&
+                          (activeConversation?.created_by === currentUser?.id || currentUser?.role === 'super_admin') && (
+                            <button
+                              className="jira-btn jira-btn-danger"
+                              style={{ fontSize: '11px', padding: '4px 8px' }}
+                              onClick={async () => {
+                                if (window.confirm(`Remove ${member.name} from this group?`)) {
+                                  try {
+                                    await conversationsAPI.removeMember(conversationId, member.id);
+                                    const updated = await conversationsAPI.get(conversationId);
+                                    setActiveConversation(updated.data);
+                                    loadConversations(false);
+                                  } catch (err) {
+                                    alert('Failed to remove member.');
+                                  }
+                                }
+                              }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

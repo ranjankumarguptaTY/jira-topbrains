@@ -37,6 +37,15 @@ export const ModalProvider = ({ children }) => {
     setIsConfirmLoading(false);
   }, []);
 
+  React.useEffect(() => {
+    if (isConfirmOpen) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
+    return () => document.body.classList.remove('modal-open');
+  }, [isConfirmOpen]);
+
   const handleConfirmAction = async () => {
     if (!confirmConfig?.onConfirm) return;
     try {

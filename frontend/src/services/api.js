@@ -179,6 +179,7 @@ export const conversationsAPI = {
   removeMember: (conversationId, userId) => api.delete(`/conversations/${conversationId}/members/${userId}`),
   markRead: (conversationId) => api.post(`/conversations/${conversationId}/read`),
   clearMessages: (conversationId) => api.delete(`/conversations/${conversationId}/messages`),
+  blockUser: (conversationId) => api.post(`/conversations/${conversationId}/block`),
 };
 
 // =============================================
@@ -220,6 +221,72 @@ export const fileTransfersAPI = {
   download: (transferId) => api.get(`/file-transfers/${transferId}/download`, { responseType: 'blob' }),
   completeDownload: (transferId) => api.post(`/file-transfers/${transferId}/download/complete`),
   cancel: (transferId) => api.post(`/file-transfers/${transferId}/cancel`),
+};
+
+// =============================================
+// UNIFIED SEARCH API
+// =============================================
+export const searchAPI = {
+  search: async (q, scope = 'all', orgId = null) => {
+    try {
+      const res = await api.get('/search', {
+        params: {
+          q,
+          scope,
+          ...(orgId ? { org_id: orgId } : {}),
+        },
+      });
+      return res;
+    } catch (err) {
+      // Fallback: Query issues, projects, users, conversations and message history
+      const [issuesRes, projectsRes, usersRes, convosRes] = await Promise.allSettled([
+        api.get('/issues', { params: { search: q } }),
+        api.get('/projects', { params: orgId ? { org_id: orgId } : {} }),
+        api.get('/auth/users'),
+        api.get('/conversations'),
+      ]);
+
+      const issues = issuesRes.status === 'fulfilled' ? (issuesRes.value.data || []) : [];
+      const allProjects = projectsRes.status === 'fulfilled' ? (projectsRes.value.data || []) : [];
+      const allUsers = usersRes.status === 'fulfilled' ? (usersRes.value.data || []) : [];
+      const allConvos = convosRes.status === 'fulfilled' ? (convosRes.value.data || []) : [];
+
+      const cleanQ = q.toLowerCase();
+      const matchedProjects = allProjects.filter(
+        (p) => p.name?.toLowerCase().includes(cleanQ) || p.key?.toLowerCase().includes(cleanQ)
+      );
+      const matchedUsers = allUsers.filter(
+        (u) =>
+          u.name?.toLowerCase().includes(cleanQ) ||
+          u.email?.toLowerCase().includes(cleanQ) ||
+          u.company_name?.toLowerCase().includes(cleanQ)
+      );
+      const matchedConvos = allConvos.filter(
+        (c) => c.name?.toLowerCase().includes(cleanQ) || c.description?.toLowerCase().includes(cleanQ)
+      );
+
+      // Search matching messages across user's active conversations
+      const matchedMsgs = [];
+      for (const c of allConvos.slice(0, 8)) {
+        if (c.last_message?.content?.toLowerCase().includes(cleanQ)) {
+          matchedMsgs.push({
+            ...c.last_message,
+            conversation_id: c.id,
+          });
+        }
+      }
+
+      return {
+        data: {
+          issues,
+          projects: matchedProjects,
+          users: matchedUsers,
+          conversations: matchedConvos,
+          messages: matchedMsgs,
+        },
+      };
+    }
+  },
 };
 
 // =============================================

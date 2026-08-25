@@ -418,6 +418,73 @@ async def get_subtasks(issue_id: str, db=Depends(get_database)):
     return result
 
 
+@router.get("/search/unified")
+async def unified_search_issues(
+    q: str = Query(..., min_length=2),
+    scope: str = Query("all"),
+    org_id: Optional[str] = Query(None),
+    db=Depends(get_database)
+):
+    import re
+    from app.core.database import serialize_doc
+    clean_q = q.strip()
+    regex_pattern = re.compile(re.escape(clean_q), re.IGNORECASE)
+    
+    # Match issues by Key, Summary, Description, Tags (Case Insensitive)
+    matching_issues = await db.issues.find({
+        "$or": [
+            {"key": regex_pattern},
+            {"summary": regex_pattern},
+            {"description": regex_pattern},
+            {"tags": regex_pattern},
+        ]
+    }).sort("updated_at", -1).limit(15).to_list(15)
+
+    issues_res = []
+    for iss in matching_issues:
+        doc = serialize_doc(iss)
+        if doc.get("assignee_id") and ObjectId.is_valid(doc["assignee_id"]):
+            assignee = await db.users.find_one({"_id": ObjectId(doc["assignee_id"])}, {"password_hash": 0})
+            doc["assignee"] = serialize_doc(assignee) if assignee else None
+        issues_res.append(doc)
+
+    # Match projects
+    matching_projects = await db.projects.find({
+        "$or": [{"name": regex_pattern}, {"key": regex_pattern}]
+    }).limit(10).to_list(10)
+
+    # Match users
+    matching_users = await db.users.find({
+        "is_active": True,
+        "$or": [{"name": regex_pattern}, {"email": regex_pattern}, {"company_name": regex_pattern}]
+    }, {"password_hash": 0}).limit(10).to_list(10)
+
+    # Match conversations
+    matching_convos = await db.conversations.find({
+        "$or": [{"name": regex_pattern}, {"description": regex_pattern}]
+    }).limit(10).to_list(10)
+
+    # Match messages
+    matching_msgs = await db.messages.find({
+        "content": regex_pattern
+    }).sort("created_at", -1).limit(15).to_list(15)
+
+    msgs_res = []
+    for m in matching_msgs:
+        doc = serialize_doc(m)
+        if ObjectId.is_valid(m.get("sender_id")):
+            sender = await db.users.find_one({"_id": ObjectId(m["sender_id"])}, {"password_hash": 0})
+            doc["sender"] = serialize_doc(sender) if sender else None
+        msgs_res.append(doc)
+
+    return {
+        "issues": issues_res,
+        "projects": [serialize_doc(p) for p in matching_projects],
+        "users": [serialize_doc(u) for u in matching_users],
+        "conversations": [serialize_doc(c) for c in matching_convos],
+        "messages": msgs_res
+    }
+
 @router.delete("/{issue_id}")
 async def delete_issue(issue_id: str, db=Depends(get_database)):
     if not ObjectId.is_valid(issue_id):

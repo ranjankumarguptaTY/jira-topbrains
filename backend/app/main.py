@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection, db_instance
 from app.core.security import get_password_hash
 from app.api import auth, projects, sprints, issues, comments, seed, import_export
-from app.api import teams, conversations, notifications, guest_requests, organizations, file_transfers
+from app.api import teams, conversations, notifications, guest_requests, organizations, file_transfers, search
 from app.api import migrate as migrate_api
 from app.api.websocket import manager, authenticate_ws_token
 
@@ -218,6 +218,7 @@ app.include_router(sprints.router)
 app.include_router(issues.router)
 app.include_router(comments.router)
 app.include_router(conversations.router)
+app.include_router(search.router)
 app.include_router(guest_requests.router)
 app.include_router(notifications.router)
 app.include_router(file_transfers.router)
@@ -260,10 +261,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 pass
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
+        await manager.disconnect(websocket, user_id)
     except Exception as e:
         logger.error(f"WebSocket error for user {user_id}: {e}")
-        manager.disconnect(websocket, user_id)
+        await manager.disconnect(websocket, user_id)
 
 
 @app.get("/")

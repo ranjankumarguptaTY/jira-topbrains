@@ -73,6 +73,7 @@
 }
 
 .app-search {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -114,6 +115,107 @@
   border-radius: var(--radius-sm);
   color: var(--color-neutral-500);
   font-family: var(--font-primary);
+}
+
+/* === SEARCH POPUP DROPDOWN === */
+.app-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(9, 30, 66, 0.18), 0 0 1px rgba(9, 30, 66, 0.31);
+  border: 1px solid #DFE1E6;
+  max-height: 480px;
+  overflow-y: auto;
+  z-index: 1200;
+  animation: fadeInDown 0.15s ease-out;
+}
+
+.app-search-section {
+  padding: 6px 0;
+  border-bottom: 1px solid #EBECF0;
+}
+
+.app-search-section:last-child {
+  border-bottom: none;
+}
+
+.app-search-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5E6C84;
+}
+
+.app-search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  gap: 12px;
+}
+
+.app-search-item:hover {
+  background: #F4F5F7;
+}
+
+.app-search-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-search-item-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.app-search-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #172B4D;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-search-item-subtitle {
+  font-size: 11px;
+  color: #6B778C;
+  margin-top: 2px;
+}
+
+.app-search-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #6B778C;
+  font-size: 13px;
+}
+
+.app-search-loading {
+  padding: 18px 16px;
+  text-align: center;
+  color: #0052CC;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 @media (max-width: 768px) {

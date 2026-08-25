@@ -22,20 +22,40 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, user_id: str):
         await websocket.accept()
+        is_first = user_id not in self.active_connections or len(self.active_connections[user_id]) == 0
         if user_id not in self.active_connections:
             self.active_connections[user_id] = set()
         self.active_connections[user_id].add(websocket)
         logger.info(f"WS connected: user={user_id}, total_connections={self._total_connections()}")
 
-    def disconnect(self, websocket: WebSocket, user_id: str):
+        # Broadcast online status
+        if is_first:
+            await self.broadcast_all({
+                "type": "USER_PRESENCE_CHANGED",
+                "user_id": user_id,
+                "status": "online"
+            })
+
+    async def disconnect(self, websocket: WebSocket, user_id: str):
         if user_id in self.active_connections:
             self.active_connections[user_id].discard(websocket)
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
+                # Broadcast offline status
+                await self.broadcast_all({
+                    "type": "USER_PRESENCE_CHANGED",
+                    "user_id": user_id,
+                    "status": "offline"
+                })
         logger.info(f"WS disconnected: user={user_id}, total_connections={self._total_connections()}")
 
     def is_online(self, user_id: str) -> bool:
         return user_id in self.active_connections and len(self.active_connections[user_id]) > 0
+
+    async def broadcast_all(self, data: dict):
+        """Broadcast event to all currently connected users."""
+        for uid in list(self.active_connections.keys()):
+            await self.send_to_user(uid, data)
 
     async def send_to_user(self, user_id: str, data: dict):
         """Send message to all connections of a specific user."""

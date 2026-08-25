@@ -621,11 +621,15 @@ ul, ol {
 }
 
 
-/* ============================================
-   MODAL / OVERLAY SYSTEM
-   ============================================ */
+/* Prevent background scroll when modals/drawers are open */
+body.modal-open {
+  overflow: hidden !important;
+  touch-action: none;
+}
 
-.modal-overlay {
+.modal-overlay,
+.modal-backdrop,
+.drawer-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(9, 30, 66, 0.54);
@@ -635,9 +639,15 @@ ul, ol {
   z-index: var(--z-modal);
   animation: fadeIn 0.15s ease;
   backdrop-filter: blur(2px);
+  overscroll-behavior: contain;
+  touch-action: none;
 }
 
 .modal-container,
+.modal-content,
+.modal-card {
+  overscroll-behavior: contain;
+}
 .modal-content {
   background: #FFFFFF;
   background-color: var(--color-neutral-0);
