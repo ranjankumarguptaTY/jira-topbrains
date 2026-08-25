@@ -1,11 +1,13 @@
-import React from 'react';
-import { Search, X, CheckCircle, Flame, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, X, CheckCircle, Flame, Filter, SlidersHorizontal } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
+import { projectsApi } from '../../api/projects';
 import { Avatar } from '../common/Avatar';
 
-export const BoardFilterBar = () => {
+export const BoardFilterBar = ({ onOpenBoardConfig }) => {
   const {
+    currentProject,
     activeSprint,
     searchQuery,
     setSearchQuery,
@@ -17,7 +19,29 @@ export const BoardFilterBar = () => {
     setTargetSprint,
   } = useProject();
 
-  const { currentUser, users } = useAuth();
+  const { currentUser, currentOrg, users, isSuperAdmin, isOrgAdmin } = useAuth();
+  const canManageBoard = isSuperAdmin() || isOrgAdmin() || (currentProject?.lead_id && String(currentProject.lead_id) === String(currentUser?.id));
+  const [teamUsers, setTeamUsers] = useState([]);
+
+  useEffect(() => {
+    if (currentProject?.id) {
+      projectsApi
+        .listMembers(currentProject.id)
+        .then((members) => {
+          const uList = (members || [])
+            .map((m) => ({
+              ...(m.user || {}),
+              team_role: m.role,
+            }))
+            .filter((u) => u.id);
+          setTeamUsers(uList);
+        })
+        .catch((err) => {
+          console.error('Failed to load project team members for filter bar', err);
+          setTeamUsers([]);
+        });
+    }
+  }, [currentProject?.id]);
 
   const toggleAssignee = (userId) => {
     if (selectedAssignees.includes(userId)) {
@@ -91,7 +115,7 @@ export const BoardFilterBar = () => {
 
         {/* Assignee Avatar Pills */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {users.map((u) => {
+          {(teamUsers.length > 0 ? teamUsers : users).map((u) => {
             const isSelected = selectedAssignees.includes(u.id);
             return (
               <button
@@ -122,6 +146,18 @@ export const BoardFilterBar = () => {
         >
           <span>Only my issues</span>
         </button>
+
+        {canManageBoard && onOpenBoardConfig && (
+          <button
+            onClick={onOpenBoardConfig}
+            className="jira-btn jira-btn-subtle"
+            style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 5 }}
+            title="Configure board card columns, statuses, and custom tags"
+          >
+            <SlidersHorizontal size={13} color="#0052CC" />
+            <span>Customize Cards & Tags</span>
+          </button>
+        )}
 
         {hasFilters && (
           <button

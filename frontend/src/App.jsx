@@ -5,16 +5,12 @@ import { ModalProvider } from './context/ModalContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { WebSocketProvider } from './context/WebSocketContext';
 import AppRoutes from './router';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 export default function App() {
   React.useEffect(() => {
-    const savedTheme = localStorage.getItem('jira-clone-theme') || 'light';
-    if (savedTheme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', systemTheme);
-    } else {
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    }
+    // Application defaults to the clean Light theme
+    document.documentElement.setAttribute('data-theme', 'light');
 
     // Fetch server time offset to calibrate client clock
     fetch('/api/health')
@@ -30,16 +26,18 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <ModalProvider>
-        <AuthProvider>
-          <WebSocketProvider>
-            <NotificationProvider>
-              <AppRoutes />
-            </NotificationProvider>
-          </WebSocketProvider>
-        </AuthProvider>
-      </ModalProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ModalProvider>
+          <AuthProvider>
+            <WebSocketProvider>
+              <NotificationProvider>
+                <AppRoutes />
+              </NotificationProvider>
+            </WebSocketProvider>
+          </AuthProvider>
+        </ModalProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

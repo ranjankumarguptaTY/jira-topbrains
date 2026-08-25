@@ -4,6 +4,7 @@ import { useProject } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
 import { issuesApi } from '../../api/issues';
+import { projectsApi } from '../../api/projects';
 
 const ISSUE_TYPES = [
   { id: 'story', label: 'Story', icon: Bookmark, color: '#36B37E' },
@@ -31,11 +32,12 @@ export const CreateIssueModal = () => {
     refreshBoard,
   } = useProject();
 
-  const { currentUser, users } = useAuth();
+  const { currentUser, currentOrg, users } = useAuth();
   const { showToast } = useModal();
 
   const [projectId, setProjectId] = useState('');
   const [type, setType] = useState('story');
+  const [status, setStatus] = useState('todo');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -43,8 +45,32 @@ export const CreateIssueModal = () => {
   const [assigneeId, setAssigneeId] = useState('');
   const [sprintId, setSprintId] = useState('');
   const [epicId, setEpicId] = useState('');
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [customTagInput, setCustomTagInput] = useState('');
   const [epics, setEpics] = useState([]);
+  const [teamUsers, setTeamUsers] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const targetProjId = projectId || currentProject?.id;
+    if (targetProjId && isCreateModalOpen) {
+      projectsApi
+        .listMembers(targetProjId)
+        .then((members) => {
+          const uList = (members || [])
+            .map((m) => ({
+              ...(m.user || {}),
+              team_role: m.role,
+            }))
+            .filter((u) => u.id);
+          setTeamUsers(uList);
+        })
+        .catch((err) => {
+          console.error('Failed to load project team members', err);
+          setTeamUsers([]);
+        });
+    }
+  }, [projectId, currentProject?.id, isCreateModalOpen]);
 
   useEffect(() => {
     if (currentProject) {
@@ -61,6 +87,25 @@ export const CreateIssueModal = () => {
   }, [currentProject, activeSprint, isCreateModalOpen]);
 
   if (!isCreateModalOpen) return null;
+
+  const handleToggleTag = (tagName) => {
+    if (selectedTags.includes(tagName)) {
+      setSelectedTags(selectedTags.filter((t) => t !== tagName));
+    } else {
+      setSelectedTags([...selectedTags, tagName]);
+    }
+  };
+
+  const handleAddCustomTag = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = customTagInput.trim().replace(/,/g, '');
+      if (val && !selectedTags.includes(val)) {
+        setSelectedTags([...selectedTags, val]);
+        setCustomTagInput('');
+      }
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -79,13 +124,16 @@ export const CreateIssueModal = () => {
         reporter_id: currentUser?.id || null,
         sprint_id: sprintId || null,
         epic_id: type !== 'epic' ? epicId || null : null,
-        status: 'todo',
+        status: status || 'todo',
+        labels: selectedTags,
       });
 
       // Reset
       setSummary('');
       setDescription('');
       setStoryPoints('');
+      setSelectedTags([]);
+      setCustomTagInput('');
       setIsCreateModalOpen(false);
       refreshBoard();
       showToast({ message: 'Issue created successfully', type: 'success' });
@@ -202,7 +250,7 @@ export const CreateIssueModal = () => {
               />
             </div>
 
-            {/* Priority & Story Points */}
+            {/* Priority & Status */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
@@ -224,16 +272,118 @@ export const CreateIssueModal = () => {
 
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
-                  Story Points
+                  Status / Board Column
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 3, 5, 8"
-                  value={storyPoints}
-                  onChange={(e) => setStoryPoints(e.target.value)}
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
                   className="jira-input"
                   style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
+                >
+                  {(currentProject?.columns || [
+                    { id: 'todo', title: 'To Do' },
+                    { id: 'inprogress', title: 'In Progress' },
+                    { id: 'inreview', title: 'In Review' },
+                    { id: 'done', title: 'Done' },
+                  ]).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title || c.label || c.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Story Points */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
+                Story Points
+              </label>
+              <input
+                type="number"
+                min="0"
+                placeholder="e.g. 3, 5, 8"
+                value={storyPoints}
+                onChange={(e) => setStoryPoints(e.target.value)}
+                className="jira-input"
+                style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
+              />
+            </div>
+
+            {/* Project Tags / Labels */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Tags & Labels</span>
+                {selectedTags.length > 0 && <span style={{ color: '#0052CC', textTransform: 'none', fontWeight: 600 }}>{selectedTags.length} selected</span>}
+              </label>
+              <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                {(currentProject?.tags || []).map((t) => {
+                  const isSelected = selectedTags.includes(t.name || t.id);
+                  const color = t.color || '#0052CC';
+                  return (
+                    <button
+                      key={t.id || t.name}
+                      type="button"
+                      onClick={() => handleToggleTag(t.name || t.id)}
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        border: isSelected ? `1.5px solid ${color}` : '1px solid #DFE1E6',
+                        background: isSelected ? `${color}22` : '#FFF',
+                        color: isSelected ? color : '#5E6C84',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+                      {t.name}
+                    </button>
+                  );
+                })}
+
+                {/* Custom tags entered */}
+                {selectedTags
+                  .filter((st) => !(currentProject?.tags || []).some((t) => (t.name || t.id) === st))
+                  .map((st) => (
+                    <span
+                      key={st}
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        border: '1.5px solid #0052CC',
+                        background: '#DEEBFF',
+                        color: '#0747A6',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      {st}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTag(st)}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#0747A6', padding: 0 }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+
+                <input
+                  type="text"
+                  placeholder="+ Type & Enter tag..."
+                  value={customTagInput}
+                  onChange={(e) => setCustomTagInput(e.target.value)}
+                  onKeyDown={handleAddCustomTag}
+                  className="jira-input"
+                  style={{ width: '150px', fontSize: '11px', padding: '3px 8px', height: '26px' }}
                 />
               </div>
             </div>
@@ -251,9 +401,9 @@ export const CreateIssueModal = () => {
                   style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
                 >
                   <option value="">Unassigned</option>
-                  {users.map((u) => (
+                  {(teamUsers.length > 0 ? teamUsers : users).map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.name}
+                      {u.name} {u.team_role ? `(${u.team_role})` : u.email ? `(${u.email})` : ''}
                     </option>
                   ))}
                 </select>

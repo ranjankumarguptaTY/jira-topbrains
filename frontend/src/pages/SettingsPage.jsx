@@ -1,16 +1,57 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Monitor } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
+import { authAPI } from '../services/api';
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Globe, Monitor, Info, Check } from 'lucide-react';
 import './SettingsPage.css';
 
 const SettingsPage = () => {
   const { currentUser } = useAuth();
+  const { showToast } = useModal();
   const { subscribeToPushNotifications } = useNotifications();
-  const [theme, setTheme] = React.useState(localStorage.getItem('jira-clone-theme') || 'light');
-  const [desktopNotifications, setDesktopNotifications] = React.useState(
+  const [theme, setTheme] = useState(localStorage.getItem('jira-clone-theme') || 'light');
+  const [desktopNotifications, setDesktopNotifications] = useState(
     localStorage.getItem('jira-clone-desktop-notifications') === 'true'
   );
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handlePasswordChangeSubmit = async (e) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      showToast({ message: 'Please enter your current password.', type: 'error' });
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      showToast({ message: 'New password must be at least 6 characters.', type: 'error' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast({ message: 'New password and confirmation do not match.', type: 'error' });
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      await authAPI.changePassword(currentPassword, newPassword);
+      showToast({ message: 'Password changed successfully!', type: 'success' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      const msg =
+        err.response?.data?.detail ||
+        'Failed to change password. If you do not remember your old password, please contact your Organization Administrator.';
+      showToast({ message: msg, type: 'error' });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   const handleDesktopNotificationsToggle = async (e) => {
     const checked = e.target.checked;
@@ -159,7 +200,8 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        {/* Appearance */}
+        {/* Appearance (Theme switcher commented out - default light theme enabled) */}
+        {/*
         <div className="settings-card">
           <div className="settings-card-header">
             <Palette size={18} />
@@ -180,24 +222,79 @@ const SettingsPage = () => {
             </div>
           </div>
         </div>
+        */}
 
-        {/* Security */}
+        {/* Security / Password */}
         <div className="settings-card">
           <div className="settings-card-header">
             <Shield size={18} />
-            <h2>Security</h2>
+            <h2>Security & Password</h2>
           </div>
-          <div className="settings-card-body">
+          <form className="settings-card-body" onSubmit={handlePasswordChangeSubmit}>
             <div className="settings-form-group">
               <label className="input-label">Current Password</label>
-              <input className="input-field" type="password" placeholder="••••••••" />
+              <input
+                className="input-field"
+                type="password"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
             </div>
             <div className="settings-form-group">
               <label className="input-label">New Password</label>
-              <input className="input-field" type="password" placeholder="••••••••" />
+              <input
+                className="input-field"
+                type="password"
+                placeholder="At least 6 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
             </div>
-            <button className="btn btn-secondary">Change Password</button>
-          </div>
+            <div className="settings-form-group">
+              <label className="input-label">Confirm New Password</label>
+              <input
+                className="input-field"
+                type="password"
+                placeholder="Repeat new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+
+            {/* Note to user if they forgot their password */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+                padding: '10px 12px',
+                borderRadius: 6,
+                backgroundColor: '#DEEBFF',
+                border: '1px solid #B3D4FF',
+                color: '#0747A6',
+                fontSize: '12px',
+                lineHeight: 1.5,
+                marginBottom: 16,
+              }}
+            >
+              <Info size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <strong>Forgot your current password?</strong>
+                <div>
+                  If you do not remember your old password, please contact your <strong>Organization Administrator</strong> or <strong>Super Admin</strong>. They can safely reset your account password to the default <code>Password@123</code> from the Admin Hub.
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-secondary"
+              disabled={isChangingPassword || !currentPassword || !newPassword}
+            >
+              {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+            </button>
+          </form>
         </div>
       </div>
     </div>

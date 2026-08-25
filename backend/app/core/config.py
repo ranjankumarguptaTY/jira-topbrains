@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     TEMP_STORAGE_LIMIT_GB: int = int(os.getenv("TEMP_STORAGE_LIMIT_GB", "1500"))
     FILE_TRANSFER_DIR: str = os.getenv("FILE_TRANSFER_DIR", "./data/file-transfers")
 
+    # Super Admin Configuration (for auto-initialization on server deployment)
+    SUPER_ADMIN_EMAIL: str = os.getenv("SUPER_ADMIN_EMAIL", "admin@topbrains.com")
+    SUPER_ADMIN_PASSWORD: str = os.getenv("SUPER_ADMIN_PASSWORD", "adminpassword123")
+    SUPER_ADMIN_NAME: str = os.getenv("SUPER_ADMIN_NAME", "TopBrains Super Admin")
+    AUTO_SEED: bool = os.getenv("AUTO_SEED", "false").lower() in ("true", "1", "yes")
+
     class Config:
         case_sensitive = True
         env_file = ".env"

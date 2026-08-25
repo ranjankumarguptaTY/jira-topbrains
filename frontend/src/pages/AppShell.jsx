@@ -22,19 +22,24 @@ import {
   ArrowLeft,
   ArrowRight,
   RotateCw,
+  Building,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { NotificationPanel } from '../components/layout/NotificationPanel';
+import { TopBrainsLogo } from '../components/common/TopBrainsLogo';
 import './AppShell.css';
 
 const AppShell = () => {
-  const { currentUser, logout } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { currentUser, logout, canManageOrg, isOrgAdmin, currentOrg, userOrgs, switchOrg, isSuperAdmin } = useAuth();
+  const { unreadCount, unreadChatCount } = useNotifications();
   const { isConnected } = useWebSocket();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const navItems = [
@@ -46,7 +51,7 @@ const AppShell = () => {
 
   const bottomNavItems = [
     { path: '/settings', icon: Settings, label: 'Settings' },
-    ...(currentUser?.role === 'admin'
+    ...(isSuperAdmin?.() || isOrgAdmin?.()
       ? [{ path: '/admin', icon: ShieldCheck, label: 'Admin' }]
       : []),
   ];
@@ -76,10 +81,7 @@ const AppShell = () => {
             {sidebarCollapsed ? <Menu size={18} /> : <Menu size={18} />}
           </button>
           <div className="app-logo" onClick={() => navigate('/')}>
-            <div className="app-logo-icon">
-              <FolderKanban size={18} color="#fff" />
-            </div>
-            <span className="app-logo-text">TopBrains</span>
+            <TopBrainsLogo size={28} />
           </div>
 
           {/* PWA navigation controls */}
@@ -161,8 +163,13 @@ const AppShell = () => {
                 <div className="dropdown-menu user-dropdown">
                   <div className="user-dropdown-header">
                     <div className="user-dropdown-name">{currentUser?.name}</div>
-                    <div className="user-dropdown-email">{currentUser?.email}</div>
-                    <div className="user-dropdown-role badge badge-primary">{currentUser?.role}</div>
+                    <div className="user-dropdown-role badge badge-primary" style={{ textTransform: 'capitalize' }}>
+                      {isSuperAdmin?.()
+                        ? 'Super Admin'
+                        : isOrgAdmin?.()
+                        ? `Org Admin · ${currentOrg?.name || ''}`
+                        : `Member · ${currentOrg?.name || 'Workspace'}`}
+                    </div>
                   </div>
                   <div className="dropdown-separator" />
                   <button className="dropdown-item" onClick={() => { navigate('/settings'); setShowUserMenu(false); }}>
@@ -184,24 +191,186 @@ const AppShell = () => {
       <div className="app-body">
         {/* === LEFT SIDEBAR === */}
         <nav className={`app-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
-          <div className="sidebar-nav">
+          <div>
+            {/* Workspace / Org Switcher */}
+            <div className="sidebar-org-container">
+              <button
+                type="button"
+                className={`sidebar-org-btn ${sidebarCollapsed ? 'collapsed' : ''}`}
+                onClick={() => setShowOrgSwitcher(!showOrgSwitcher)}
+                title={currentOrg ? `Organization: ${currentOrg.name}` : 'Personal Workspace'}
+              >
+                <div className="sidebar-org-icon">
+                  <Building size={16} color="#0052CC" />
+                </div>
+                {!sidebarCollapsed && (
+                  <div className="sidebar-org-info">
+                    <div className="sidebar-org-name truncate">
+                      {currentOrg?.name || (isSuperAdmin?.() ? 'All Organizations' : 'Personal Workspace')}
+                    </div>
+                    {isSuperAdmin?.() ? (
+                      <div className="sidebar-org-role">{currentOrg ? 'Viewing Org Specific' : 'Overall Platform View'}</div>
+                    ) : userOrgs.length > 1 ? (
+                      <div className="sidebar-org-role">{userOrgs.length} Orgs (Click to switch)</div>
+                    ) : currentOrg ? (
+                      <div className="sidebar-org-role">Active Org</div>
+                    ) : null}
+                  </div>
+                )}
+                {!sidebarCollapsed && (userOrgs.length > 1 || isSuperAdmin?.()) && (
+                  <ChevronsUpDown size={14} className="sidebar-org-chevron" />
+                )}
+              </button>
+
+              {/* Org Switcher Dropdown */}
+              {showOrgSwitcher && (
+                <>
+                  <div className="dropdown-backdrop" onClick={() => setShowOrgSwitcher(false)} />
+                  <div className={`dropdown-menu sidebar-org-dropdown ${sidebarCollapsed ? 'from-collapsed' : ''}`}>
+                    <div className="sidebar-org-dropdown-header">
+                      <span>Switch Organization</span>
+                      <span className="badge badge-neutral" style={{ fontSize: '10px' }}>
+                        {userOrgs.length} Available
+                      </span>
+                    </div>
+
+                    <div className="sidebar-org-list">
+                      {isSuperAdmin?.() && (
+                        <button
+                          type="button"
+                          className={`sidebar-org-item ${!currentOrg ? 'selected' : ''}`}
+                          onClick={() => {
+                            switchOrg(null);
+                            setShowOrgSwitcher(false);
+                          }}
+                        >
+                          <div className="sidebar-org-item-avatar" style={{ background: !currentOrg ? '#DEEBFF' : '#EBECF0' }}>
+                            <Building size={14} color={!currentOrg ? '#0052CC' : '#5E6C84'} />
+                          </div>
+                          <div className="sidebar-org-item-info">
+                            <div className="sidebar-org-item-name truncate" style={{ fontWeight: 700 }}>
+                              🌐 All Organizations (Overall)
+                            </div>
+                            <div className="sidebar-org-item-meta">
+                              Platform analytics across all orgs
+                            </div>
+                          </div>
+                          {!currentOrg && <Check size={14} color="#0052CC" className="sidebar-org-item-check" />}
+                        </button>
+                      )}
+
+                      {userOrgs.map((org) => {
+                        const isSelected = currentOrg?.id === org.id;
+                        return (
+                          <button
+                            key={org.id}
+                            type="button"
+                            className={`sidebar-org-item ${isSelected ? 'selected' : ''}`}
+                            onClick={() => {
+                              switchOrg(org);
+                              setShowOrgSwitcher(false);
+                            }}
+                          >
+                            <div className="sidebar-org-item-avatar">
+                              <Building size={14} color={isSelected ? '#0052CC' : '#5E6C84'} />
+                            </div>
+                            <div className="sidebar-org-item-info">
+                              <div className="sidebar-org-item-name truncate">{org.name}</div>
+                              <div className="sidebar-org-item-meta">
+                                {org.member_count || 0} members · {org.team_count || 0} teams
+                              </div>
+                            </div>
+                            {isSelected && <Check size={14} color="#0052CC" className="sidebar-org-item-check" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {isSuperAdmin?.() && (
+                      <>
+                        <div className="dropdown-separator" />
+                        <button
+                          type="button"
+                          className="dropdown-item"
+                          style={{ fontSize: '12px', color: '#0052CC', fontWeight: 600 }}
+                          onClick={() => {
+                            navigate('/admin');
+                            setShowOrgSwitcher(false);
+                          }}
+                        >
+                          <ShieldCheck size={14} />
+                          Admin Hub (All Orgs & Teams)
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="sidebar-nav">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.exact
                 ? location.pathname === item.path
                 : location.pathname.startsWith(item.path);
+              const isChat = item.path === '/chat';
+              const hasChatUnread = isChat && unreadChatCount > 0;
+
               return (
                 <NavLink
                   key={item.path}
                   to={item.path}
                   className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
                   title={item.label}
+                  style={{ position: 'relative' }}
                 >
-                  <Icon size={18} />
-                  {!sidebarCollapsed && <span>{item.label}</span>}
+                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon size={18} />
+                    {hasChatUnread && sidebarCollapsed && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -2,
+                          right: -4,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: '#DE350B',
+                          boxShadow: '0 0 0 2px #FAFBFC',
+                        }}
+                      />
+                    )}
+                  </div>
+                  {!sidebarCollapsed && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1, minWidth: 0 }}>
+                      <span>{item.label}</span>
+                      {hasChatUnread && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#DE350B',
+                            color: '#FFFFFF',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            minWidth: '18px',
+                            height: '16px',
+                            lineHeight: 1,
+                          }}
+                        >
+                          {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </NavLink>
               );
             })}
+            </div>
           </div>
 
           <div className="sidebar-bottom">

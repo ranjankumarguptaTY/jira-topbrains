@@ -101,6 +101,9 @@ async def create_conversation(
     convo_doc = {
         "type": convo_in.type,
         "name": convo_in.name,
+        "organization_id": convo_in.organization_id,
+        "team_id": convo_in.team_id,
+        "project_id": convo_in.project_id,
         "created_by": current_user["id"],
         "created_at": now,
         "updated_at": now,
@@ -141,11 +144,14 @@ async def get_conversation(
     if not ObjectId.is_valid(conversation_id):
         raise HTTPException(status_code=400, detail="Invalid conversation ID")
 
+    from app.core.security import is_super_admin
+    is_super = is_super_admin(current_user)
+
     # Verify membership
     membership = await db.conversation_members.find_one({
         "conversation_id": conversation_id, "user_id": current_user["id"]
     })
-    if not membership:
+    if not membership and not is_super:
         raise HTTPException(status_code=403, detail="Not a member of this conversation")
 
     convo = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
@@ -157,7 +163,7 @@ async def get_conversation(
     members = []
     for m in members_raw:
         if ObjectId.is_valid(m.get("user_id")):
-            user = await db.users.find_one({"_id": ObjectId(m["user_id"])}, {"password_hash": 0})
+            user = await db.users.find_one({"_id": ObjectId(m["user_id"])}, {"password_hash": 0, "email": 0})
             if user:
                 members.append(serialize_doc(user))
     doc["members"] = members
@@ -175,11 +181,14 @@ async def get_messages(
     db=Depends(get_database)
 ):
     """Get messages for a conversation (paginated)."""
+    from app.core.security import is_super_admin
+    is_super = is_super_admin(current_user)
+
     # Verify membership
     membership = await db.conversation_members.find_one({
         "conversation_id": conversation_id, "user_id": current_user["id"]
     })
-    if not membership:
+    if not membership and not is_super:
         raise HTTPException(status_code=403, detail="Not a member of this conversation")
 
     query = {"conversation_id": conversation_id}
@@ -201,9 +210,9 @@ async def get_messages(
     result = []
     for msg in msgs:
         doc = serialize_doc(msg)
-        # Populate sender
+        # Populate sender (name, role, avatar only - no email)
         if ObjectId.is_valid(msg.get("sender_id")):
-            sender = await db.users.find_one({"_id": ObjectId(msg["sender_id"])}, {"password_hash": 0})
+            sender = await db.users.find_one({"_id": ObjectId(msg["sender_id"])}, {"password_hash": 0, "email": 0})
             if sender:
                 doc["sender"] = serialize_doc(sender)
         result.append(doc)
@@ -218,11 +227,14 @@ async def send_message(
     db=Depends(get_database)
 ):
     """Send a message to a conversation."""
-    # Verify membership
+    # Verify membership (allow super_admin anywhere)
+    from app.core.security import is_super_admin
+    is_super = is_super_admin(current_user)
+
     membership = await db.conversation_members.find_one({
         "conversation_id": conversation_id, "user_id": current_user["id"]
     })
-    if not membership:
+    if not membership and not is_super:
         raise HTTPException(status_code=403, detail="Not a member of this conversation")
 
     now = datetime.now(timezone.utc)
@@ -243,16 +255,18 @@ async def send_message(
         {"$set": {"updated_at": now}}
     )
 
-    # Update sender's last_read_at
-    await db.conversation_members.update_one(
-        {"conversation_id": conversation_id, "user_id": current_user["id"]},
-        {"$set": {"last_read_at": now}}
-    )
+    # Update sender's last_read_at if membership exists
+    if membership:
+        await db.conversation_members.update_one(
+            {"conversation_id": conversation_id, "user_id": current_user["id"]},
+            {"$set": {"last_read_at": now}}
+        )
 
     doc = serialize_doc(msg_doc)
     doc["sender"] = {
         "id": current_user["id"],
         "name": current_user.get("name"),
+        "role": current_user.get("role", "member"),
         "avatar_url": current_user.get("avatar_url"),
     }
 

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { useWebSocket } from './WebSocketContext';
-import { notificationsAPI } from '../services/api';
+import { notificationsAPI, conversationsAPI } from '../services/api';
 
 const VAPID_PUBLIC_KEY = 'BIfCXTtqIKNyf-7tQ5JSVe3QopuTH6ZXAbegMYBTxHhRaw5qfIQoJrma7Z1PDB0fZ8T97iTiT_nhqWZnynUqRG0';
 
@@ -27,8 +27,10 @@ export const NotificationProvider = ({ children }) => {
   const ws = useWebSocket();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [loading, setLoading] = useState(false);
-// Helper to show desktop push notifications
+
+  // Helper to show desktop push notifications
   const showDesktopNotification = useCallback((title, body) => {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
@@ -52,13 +54,24 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [isAuthenticated]);
 
+  const fetchUnreadChatCount = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await conversationsAPI.list();
+      const convos = res.data || [];
+      const totalUnreadMessages = convos.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+      setUnreadChatCount(totalUnreadMessages);
+    } catch (err) {
+      console.debug('Failed to fetch conversation unread count');
+    }
+  }, [isAuthenticated]);
+
   const fetchUnreadCount = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       const res = await notificationsAPI.getUnreadCount();
       setUnreadCount(res.data.count || 0);
     } catch (err) {
-      // Notification endpoint might not be ready yet
       console.debug('Notifications API not ready');
     }
   }, [isAuthenticated]);
@@ -111,11 +124,13 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     if (isAuthenticated) {
       fetchUnreadCount();
+      fetchUnreadChatCount();
     } else {
       setNotifications([]);
       setUnreadCount(0);
+      setUnreadChatCount(0);
     }
-  }, [isAuthenticated, fetchUnreadCount]);
+  }, [isAuthenticated, fetchUnreadCount, fetchUnreadChatCount]);
 
   const clearConversationNotifications = useCallback((conversationId) => {
     setNotifications((prev) =>
@@ -126,7 +141,8 @@ export const NotificationProvider = ({ children }) => {
       )
     );
     fetchUnreadCount();
-  }, [fetchUnreadCount]);
+    fetchUnreadChatCount();
+  }, [fetchUnreadCount, fetchUnreadChatCount]);
 
   // Listen for real-time notifications via WebSocket
   useEffect(() => {
@@ -157,9 +173,12 @@ export const NotificationProvider = ({ children }) => {
     });
 
     const unsubMsg = ws.subscribe('CHAT_MESSAGE_CREATED', (data) => {
-      if (localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
-        const isOwn = data.message?.sender_id === currentUser?.id;
-        if (!isOwn) {
+      const isOwn = data.message?.sender_id === currentUser?.id;
+      if (!isOwn) {
+        // Increment unread chat count in real-time
+        setUnreadChatCount((prev) => prev + 1);
+
+        if (localStorage.getItem('jira-clone-desktop-notifications') === 'true') {
           const pathSegments = window.location.pathname.split('/');
           const isOnChatPage = pathSegments[1] === 'chat' && pathSegments[2] === data.conversation_id;
           if (!isOnChatPage) {
@@ -185,9 +204,11 @@ export const NotificationProvider = ({ children }) => {
       value={{
         notifications,
         unreadCount,
+        unreadChatCount,
         loading,
         fetchNotifications,
         fetchUnreadCount,
+        fetchUnreadChatCount,
         markAsRead,
         markAllAsRead,
         clearConversationNotifications,

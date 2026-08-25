@@ -8,30 +8,49 @@ from app.core.database import connect_to_mongo, close_mongo_connection, db_insta
 from app.core.security import get_password_hash
 from app.api import auth, projects, sprints, issues, comments, seed, import_export
 from app.api import teams, conversations, notifications, guest_requests, organizations, file_transfers
+from app.api import migrate as migrate_api
 from app.api.websocket import manager, authenticate_ws_token
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("topbrains_jira_app")
 
 async def ensure_default_admin():
-    """Ensure TopBrains default master admin account exists in MongoDB"""
+    """Ensure TopBrains default master super_admin account exists in MongoDB"""
     try:
         db = db_instance.db
-        admin_email = "admin@topbrains.com"
+        admin_email = settings.SUPER_ADMIN_EMAIL.strip().lower()
+        admin_password = settings.SUPER_ADMIN_PASSWORD
+        admin_name = settings.SUPER_ADMIN_NAME
+
         existing = await db.users.find_one({"email": admin_email})
         if not existing:
             admin_user = {
                 "email": admin_email,
-                "name": "TopBrains Admin",
-                "password_hash": get_password_hash("adminpassword123"),
-                "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=TopBrainsAdminMaster",
-                "role": "admin",
+                "name": admin_name,
+                "password_hash": get_password_hash(admin_password),
+                "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=TopBrainsMasterSuperAdmin",
+                "role": "super_admin",
+                "is_active": True,
                 "created_at": datetime.now(timezone.utc)
             }
             await db.users.insert_one(admin_user)
-            logger.info("Default TopBrains Master Admin account created: %s", admin_email)
+            logger.info("Default TopBrains Master Admin account created: %s (role: super_admin)", admin_email)
         else:
-            logger.info("TopBrains Master Admin account verified: %s", admin_email)
+            # Transition: ensure existing admin has super_admin role
+            if existing.get("role") != "super_admin":
+                await db.users.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": {"role": "super_admin"}}
+                )
+                logger.info("Upgraded %s to super_admin role", admin_email)
+            logger.info("TopBrains Super Admin account verified: %s", admin_email)
+        
+        # Ensure Super Admin has zero assigned org memberships so credentials/profile remain strictly platform-level
+        admin_doc = await db.users.find_one({"email": admin_email})
+        if admin_doc:
+            deleted = await db.org_memberships.delete_many({"user_id": str(admin_doc["_id"])})
+            if deleted.deleted_count > 0:
+                logger.info("Cleaned %d assigned org memberships from Super Admin", deleted.deleted_count)
     except Exception as e:
         logger.warning("Notice ensuring master admin: %s", e)
 
@@ -53,11 +72,29 @@ async def ensure_indexes():
         # Teams & Organizations
         await db.organizations.create_index("name")
         await db.teams.create_index("name")
+        await db.teams.create_index("organization_id")
         await db.team_memberships.create_index([("team_id", 1), ("user_id", 1)], unique=True)
         await db.team_memberships.create_index("user_id")
 
+        # Org memberships
+        await db.org_memberships.create_index([("organization_id", 1), ("user_id", 1)], unique=True)
+        await db.org_memberships.create_index("user_id")
+        await db.org_memberships.create_index("organization_id")
+
+        # Project memberships
+        await db.project_memberships.create_index([("project_id", 1), ("user_id", 1)], unique=True)
+        await db.project_memberships.create_index("user_id")
+        await db.project_memberships.create_index("project_id")
+
+        # Projects — team and org indexes
+        await db.projects.create_index("team_id")
+        await db.projects.create_index("organization_id")
+
         # Chat
         await db.conversations.create_index("updated_at")
+        await db.conversations.create_index([("type", 1), ("organization_id", 1)])
+        await db.conversations.create_index([("type", 1), ("team_id", 1)])
+        await db.conversations.create_index([("type", 1), ("project_id", 1)])
         await db.conversation_members.create_index([("conversation_id", 1), ("user_id", 1)], unique=True)
         await db.conversation_members.create_index("user_id")
         await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
@@ -82,6 +119,30 @@ async def ensure_indexes():
     except Exception as e:
         logger.warning(f"Index creation notice: {e}")
 
+async def auto_migrate():
+    """Run migration on startup to ensure data consistency during transition."""
+    try:
+        db = db_instance.db
+        from app.api.migrate import run_migration
+        results = await run_migration(db)
+        logger.info("Auto-migration completed: %s", results)
+    except Exception as e:
+        logger.warning("Auto-migration notice: %s", e)
+
+async def check_auto_seed():
+    """If AUTO_SEED is enabled and DB has no organizations, seed initial data."""
+    try:
+        if settings.AUTO_SEED:
+            db = db_instance.db
+            org_count = await db.organizations.count_documents({})
+            if org_count == 0:
+                logger.info("AUTO_SEED is enabled & database is empty. Running initial demo seeding...")
+                from app.api.seed import seed_jira_database
+                await seed_jira_database(db)
+                logger.info("Initial demo seeding completed successfully.")
+    except Exception as e:
+        logger.warning("Auto-seed notice: %s", e)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -89,6 +150,8 @@ async def lifespan(app: FastAPI):
     await connect_to_mongo()
     await ensure_default_admin()
     await ensure_indexes()
+    await auto_migrate()
+    await check_auto_seed()
     yield
     # Shutdown
     logger.info("Shutting down TopBrains Collaboration Platform API...")
@@ -97,7 +160,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="TopBrains — Unified Collaboration Platform with Chat & Project Management",
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan
 )
 
@@ -160,6 +223,7 @@ app.include_router(notifications.router)
 app.include_router(file_transfers.router)
 app.include_router(seed.router)
 app.include_router(import_export.router)
+app.include_router(migrate_api.router)
 
 
 # =============================================
@@ -207,7 +271,7 @@ async def root():
     return {
         "status": "healthy",
         "app": "TopBrains Collaboration Platform API",
-        "version": "2.0.0",
+        "version": "3.0.0",
         "docs": "/docs",
         "database": settings.DATABASE_NAME,
         "master_admin": "admin@topbrains.com"

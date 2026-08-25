@@ -28,5 +28,16 @@ export const authApi = {
   adminUpdateUserStatus: async (userId, isActive) => {
     const res = await client.patch(`/api/auth/admin/users/${userId}/status`, { is_active: isActive });
     return res.data;
+  },
+  adminResetPasswordDefault: async (userId) => {
+    const res = await client.post(`/api/auth/admin/users/${userId}/reset-password-default`);
+    return res.data;
+  },
+  changePassword: async (currentPassword, newPassword) => {
+    const res = await client.post('/api/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return res.data;
   }
 };

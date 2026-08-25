@@ -19,9 +19,9 @@ export const IssueCard = ({ issue, isDragging }) => {
         padding: '10px 12px',
         marginBottom: '8px',
         cursor: 'pointer',
-        backgroundColor: 'var(--color-neutral-0)',
-        boxShadow: isDragging ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
-        border: isDragging ? '1.5px solid var(--color-primary-600)' : '1px solid var(--color-neutral-200)',
+        backgroundColor: '#FFFFFF',
+        boxShadow: isDragging ? '0 8px 16px rgba(9, 30, 66, 0.2)' : '0 1px 2px rgba(9, 30, 66, 0.08)',
+        border: isDragging ? '1.5px solid #0052CC' : '1px solid #DFE1E6',
         borderRadius: '4px',
         transform: isDragging ? 'rotate(1.5deg)' : 'none',
         transition: 'all 0.15s ease',
@@ -62,7 +62,34 @@ export const IssueCard = ({ issue, isDragging }) => {
         {issue.summary}
       </div>
 
-      {/* Labels or Subtask progress */}
+      {/* Tags & Labels */}
+      {issue.labels && issue.labels.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+          {issue.labels.map((lbl, idx) => {
+            const projectTags = currentProject?.tags || [];
+            const tagObj = projectTags.find((t) => (t.name || t.id).toLowerCase() === lbl.toLowerCase());
+            const color = tagObj?.color || '#0052CC';
+            return (
+              <span
+                key={idx}
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '1px 6px',
+                  borderRadius: '3px',
+                  background: `${color}18`,
+                  color: color,
+                  border: `1px solid ${color}33`,
+                }}
+              >
+                {tagObj?.name || lbl}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Subtask progress */}
       {hasSubtasks && (
         <div
           style={{

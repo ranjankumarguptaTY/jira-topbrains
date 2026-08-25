@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
 import { issuesApi } from '../../api/issues';
 import { commentsApi } from '../../api/comments';
+import { projectsApi } from '../../api/projects';
 import { IssueTypeBadge } from '../common/IssueTypeBadge';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { StatusBadge } from '../common/StatusBadge';
@@ -50,7 +51,7 @@ const TYPE_OPTIONS = [
 
 export const IssueDetailModal = () => {
   const { selectedIssueId, setSelectedIssueId, refreshBoard, currentProject } = useProject();
-  const { currentUser, users } = useAuth();
+  const { currentUser, currentOrg, users } = useAuth();
   const { showConfirm, showToast } = useModal();
 
   const [issue, setIssue] = useState(null);
@@ -58,6 +59,7 @@ export const IssueDetailModal = () => {
   const [comments, setComments] = useState([]);
   const [activities, setActivities] = useState([]);
   const [epics, setEpics] = useState([]);
+  const [teamUsers, setTeamUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('comments'); // comments or history
 
   // Form states
@@ -70,12 +72,41 @@ export const IssueDetailModal = () => {
   const [newComment, setNewComment] = useState('');
   const [newSubtaskSummary, setNewSubtaskSummary] = useState('');
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [detailTagInput, setDetailTagInput] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Debounce timers
   const storyPointsTimerRef = useRef(null);
   const timeSpentTimerRef = useRef(null);
   const timeEstimateTimerRef = useRef(null);
+
+  const handleToggleIssueTag = (tagName) => {
+    const currentLabels = issue?.labels || [];
+    let updatedLabels;
+    if (currentLabels.includes(tagName)) {
+      updatedLabels = currentLabels.filter((l) => l !== tagName);
+    } else {
+      updatedLabels = [...currentLabels, tagName];
+    }
+    setIssue((prev) => ({ ...prev, labels: updatedLabels }));
+    handleUpdateField({ labels: updatedLabels });
+  };
+
+  const handleAddDetailTag = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = detailTagInput.trim().replace(/,/g, '');
+      if (val) {
+        const currentLabels = issue?.labels || [];
+        if (!currentLabels.includes(val)) {
+          const updatedLabels = [...currentLabels, val];
+          setIssue((prev) => ({ ...prev, labels: updatedLabels }));
+          handleUpdateField({ labels: updatedLabels });
+        }
+        setDetailTagInput('');
+      }
+    }
+  };
 
   const fetchIssueDetails = async (id) => {
     try {
@@ -111,6 +142,27 @@ export const IssueDetailModal = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const targetProjId = issue?.project_id || currentProject?.id;
+    if (targetProjId && selectedIssueId) {
+      projectsApi
+        .listMembers(targetProjId)
+        .then((members) => {
+          const uList = (members || [])
+            .map((m) => ({
+              ...(m.user || {}),
+              team_role: m.role,
+            }))
+            .filter((u) => u.id);
+          setTeamUsers(uList);
+        })
+        .catch((err) => {
+          console.error('Failed to load project team members for detail', err);
+          setTeamUsers([]);
+        });
+    }
+  }, [issue?.project_id, currentProject?.id, selectedIssueId]);
 
   useEffect(() => {
     if (selectedIssueId) {
@@ -728,9 +780,9 @@ export const IssueDetailModal = () => {
                   textTransform: 'uppercase',
                 }}
               >
-                {STATUS_OPTIONS.map((opt) => (
+                {(currentProject?.columns && currentProject.columns.length > 0 ? currentProject.columns : STATUS_OPTIONS).map((opt) => (
                   <option key={opt.id} value={opt.id}>
-                    {opt.label}
+                    {opt.title || opt.label || opt.id.toUpperCase()}
                   </option>
                 ))}
               </select>
@@ -758,9 +810,9 @@ export const IssueDetailModal = () => {
                 style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
               >
                 <option value="">Unassigned</option>
-                {users.map((u) => (
+                {(teamUsers.length > 0 ? teamUsers : users).map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name}
+                    {u.name} {u.team_role ? `(${u.team_role})` : u.email ? `(${u.email})` : ''}
                   </option>
                 ))}
               </select>
@@ -810,6 +862,108 @@ export const IssueDetailModal = () => {
                 className="jira-input"
                 style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
               />
+            </div>
+
+            {/* Tags & Labels */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Tags & Labels</span>
+                {(issue?.labels || []).length > 0 && (
+                  <span style={{ color: '#0052CC', textTransform: 'none', fontWeight: 600 }}>
+                    {issue.labels.length} tags
+                  </span>
+                )}
+              </label>
+
+              {/* Active Tag Badges */}
+              <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                {(issue?.labels || []).map((lbl) => {
+                  const projectTags = currentProject?.tags || [];
+                  const tagObj = projectTags.find((t) => (t.name || t.id).toLowerCase() === lbl.toLowerCase());
+                  const color = tagObj?.color || '#0052CC';
+                  return (
+                    <span
+                      key={lbl}
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        border: `1.5px solid ${color}`,
+                        background: `${color}18`,
+                        color: color,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                    >
+                      {tagObj?.name || lbl}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleIssueTag(lbl)}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: color,
+                          padding: 0,
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                        }}
+                        title="Remove tag"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Available Project Tags Picker */}
+              <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                {(currentProject?.tags || [])
+                  .filter((t) => !(issue?.labels || []).includes(t.name || t.id))
+                  .map((t) => {
+                    const color = t.color || '#0052CC';
+                    return (
+                      <button
+                        key={t.id || t.name}
+                        type="button"
+                        onClick={() => handleToggleIssueTag(t.name || t.id)}
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '2px 6px',
+                          borderRadius: '3px',
+                          border: '1px dashed #DFE1E6',
+                          background: '#FFF',
+                          color: '#5E6C84',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        title={`Add ${t.name} tag`}
+                      >
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+                        + {t.name}
+                      </button>
+                    );
+                  })}
+              </div>
+
+              {/* Type new tag input */}
+              <div style={{ marginTop: '6px' }}>
+                <input
+                  type="text"
+                  placeholder="+ Add new tag & press Enter..."
+                  value={detailTagInput}
+                  onChange={(e) => setDetailTagInput(e.target.value)}
+                  onKeyDown={handleAddDetailTag}
+                  className="jira-input"
+                  style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#FFFFFF' }}
+                />
+              </div>
             </div>
 
             {/* Epic Link */}

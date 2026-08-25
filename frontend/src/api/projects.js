@@ -1,8 +1,8 @@
 import client from './client';
 
 export const projectsApi = {
-  list: async () => {
-    const res = await client.get('/api/projects');
+  list: async (orgId) => {
+    const res = await client.get('/api/projects', { params: orgId ? { org_id: orgId } : {} });
     return res.data;
   },
   get: async (idOrKey) => {
@@ -19,6 +19,34 @@ export const projectsApi = {
   },
   delete: async (id) => {
     const res = await client.delete(`/api/projects/${id}`);
+    return res.data;
+  },
+  listMembers: async (projectId) => {
+    const res = await client.get(`/api/projects/${projectId}/members`);
+    return res.data;
+  },
+  getBoardConfig: async (projectId) => {
+    const res = await client.get(`/api/projects/${projectId}/board-config`);
+    return res.data;
+  },
+  updateBoardConfig: async (projectId, data) => {
+    const res = await client.put(`/api/projects/${projectId}/board-config`, data);
+    return res.data;
+  },
+  addTag: async (projectId, data) => {
+    const res = await client.post(`/api/projects/${projectId}/tags`, data);
+    return res.data;
+  },
+  deleteTag: async (projectId, tagId) => {
+    const res = await client.delete(`/api/projects/${projectId}/tags/${tagId}`);
+    return res.data;
+  },
+  addColumn: async (projectId, data) => {
+    const res = await client.post(`/api/projects/${projectId}/columns`, data);
+    return res.data;
+  },
+  deleteColumn: async (projectId, columnId) => {
+    const res = await client.delete(`/api/projects/${projectId}/columns/${columnId}`);
     return res.data;
   },
   seed: async () => {

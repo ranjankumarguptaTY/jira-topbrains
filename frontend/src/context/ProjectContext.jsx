@@ -6,7 +6,7 @@ import { useAuth } from './AuthContext';
 const ProjectContext = createContext(null);
 
 export const ProjectProvider = ({ children }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, currentOrg } = useAuth();
   const [projects, setProjects] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
   const [sprints, setSprints] = useState([]);
@@ -37,19 +37,22 @@ export const ProjectProvider = ({ children }) => {
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const data = await projectsApi.list();
-      setProjects(data);
-      if (data.length > 0) {
-        const defaultProj = currentProject || data[0];
-        if (!currentProject || !data.some((p) => p.id === currentProject.id)) {
-          setCurrentProject(defaultProj);
-        }
-        // Load sprints immediately for the active project
+      const data = await projectsApi.list(currentOrg?.id);
+      setProjects(data || []);
+      if (data && data.length > 0) {
+        const defaultProj = (currentProject && data.some((p) => p.id === currentProject.id)) ? currentProject : data[0];
+        setCurrentProject(defaultProj);
         const sprintData = await sprintsApi.listByProject(defaultProj.id);
-        setSprints(sprintData);
+        setSprints(sprintData || []);
+      } else {
+        setCurrentProject(null);
+        setSprints([]);
       }
     } catch (err) {
       console.error('Failed to load projects', err);
+      setProjects([]);
+      setCurrentProject(null);
+      setSprints([]);
     } finally {
       setLoading(false);
     }
@@ -67,7 +70,7 @@ export const ProjectProvider = ({ children }) => {
 
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [currentOrg?.id]);
 
   useEffect(() => {
     if (currentProject) {

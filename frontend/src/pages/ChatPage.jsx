@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useNotifications } from '../context/NotificationContext';
-import { authAPI, conversationsAPI, guestRequestsAPI, fileTransfersAPI } from '../services/api';
+import { authAPI, conversationsAPI, guestRequestsAPI, fileTransfersAPI, orgAPI } from '../services/api';
 import {
   MessageCircle,
   Plus,
@@ -27,6 +27,11 @@ import {
   X,
   Sparkles,
   ArrowDown,
+  Radio,
+  Building,
+  Briefcase,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import './ChatPage.css';
 
@@ -45,7 +50,7 @@ const COMMON_EMOJIS = [
 const ChatPage = () => {
   const { conversationId } = useParams();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, currentOrg } = useAuth();
   const ws = useWebSocket();
   const { clearConversationNotifications } = useNotifications();
 
@@ -67,6 +72,7 @@ const ChatPage = () => {
       });
     }
   };
+
   const [showMessageSearch, setShowMessageSearch] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -76,12 +82,28 @@ const ChatPage = () => {
   const [searchedMemberUsers, setSearchedMemberUsers] = useState([]);
   const [searchingMemberUsers, setSearchingMemberUsers] = useState(false);
 
+  // Section collapse states
+  const [collapsedSections, setCollapsedSections] = useState({});
+
+  const toggleSection = (sectionKey) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }));
+  };
+
   const filteredMessages = messages.filter((msg) => {
     if (!messageSearchQuery) return true;
     return msg.content?.toLowerCase().includes(messageSearchQuery.toLowerCase());
   });
+
   const [guestRequests, setGuestRequests] = useState([]);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [newChatTab, setNewChatTab] = useState('direct'); // 'direct' | 'group'
+  const [groupName, setGroupName] = useState('');
+  const [groupSelectedMembers, setGroupSelectedMembers] = useState([]);
+  const [orgMemberList, setOrgMemberList] = useState([]);
+
   const [showGuestRequests, setShowGuestRequests] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,12 +112,12 @@ const ChatPage = () => {
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [externalReqMessage, setExternalReqMessage] = useState('');
   const [selectedExternalUser, setSelectedExternalUser] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(null); // { filename, percentage }
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [loadingConvos, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
 
-  // Search registered users by name or email when typing in user picker
+  // Search registered users by name or email
   useEffect(() => {
     if (!userSearchQuery.trim()) {
       setSearchedUsers([]);
@@ -115,6 +137,15 @@ const ChatPage = () => {
     return () => clearTimeout(timer);
   }, [userSearchQuery]);
 
+  // Load org members for group chat creation
+  useEffect(() => {
+    if (showNewChat && newChatTab === 'group' && currentOrg?.id) {
+      orgAPI.listMembers(currentOrg.id).then((res) => {
+        setOrgMemberList(res.data || []);
+      }).catch((err) => console.warn('Failed to load org members', err));
+    }
+  }, [showNewChat, newChatTab, currentOrg]);
+
   // Refs
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -123,7 +154,7 @@ const ChatPage = () => {
   const moreMenuRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-const handleEmojiClick = (emoji) => {
+  const handleEmojiClick = (emoji) => {
     setNewMessage((prev) => prev + emoji);
     setShowEmojiPicker(false);
     inputRef.current?.focus();
@@ -169,7 +200,7 @@ const handleEmojiClick = (emoji) => {
     return () => clearTimeout(timer);
   }, [memberSearchQuery]);
 
-const handleClearChat = async () => {
+  const handleClearChat = async () => {
     try {
       await conversationsAPI.clearMessages(conversationId);
       setMessages([]);
@@ -195,7 +226,7 @@ const handleClearChat = async () => {
     }
   };
 
-  // Load conversations list (only active chatted conversations)
+  // Load conversations list
   const loadConversations = useCallback(async () => {
     try {
       setLoadingConversations(true);
@@ -253,7 +284,6 @@ const handleClearChat = async () => {
         conversationsAPI.markRead(conversationId).catch(() => {});
         clearConversationNotifications?.(conversationId);
 
-        // Scroll to bottom
         setTimeout(() => {
           if (chatMessagesRef.current) {
             chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
@@ -273,20 +303,15 @@ const handleClearChat = async () => {
     const container = chatMessagesRef.current;
     if (!container || fetchingPage) return;
 
-    // Clear unread badge if user reaches the bottom
     const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
     if (isAtBottom) {
       setNewIncomingCount(0);
     }
 
-    // Scroll near the top -> Load older messages
     if (container.scrollTop < 20 && hasMoreBefore && messages.length > 0) {
       try {
         setFetchingPage(true);
         const beforeId = messages[0].id;
-        const previousScrollHeight = container.scrollHeight;
-        const previousScrollTop = container.scrollTop;
-
         const res = await conversationsAPI.getMessages(conversationId, { before: beforeId, limit: 50 });
         const olderMsgs = res.data || [];
 
@@ -296,148 +321,88 @@ const handleClearChat = async () => {
 
         setMessages((prev) => {
           const combined = [...olderMsgs, ...prev];
-          if (combined.length > 100) {
-            setHasMoreAfter(true);
-            return combined.slice(0, 100);
-          }
-          return combined;
-        });
-
-        setTimeout(() => {
-          container.scrollTop = container.scrollHeight - previousScrollHeight + previousScrollTop;
-        }, 0);
-      } catch (err) {
-        console.error('Failed to load older messages', err);
-      } finally {
-        setFetchingPage(false);
-      }
-    }
-
-    // Scroll near the bottom -> Load newer messages
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 20;
-    if (isNearBottom && hasMoreAfter && messages.length > 0) {
-      try {
-        setFetchingPage(true);
-        const afterId = messages[messages.length - 1].id;
-
-        const res = await conversationsAPI.getMessages(conversationId, { after: afterId, limit: 50 });
-        const newerMsgs = res.data || [];
-
-        if (newerMsgs.length < 50) {
-          setHasMoreAfter(false);
-        }
-
-        setHasMoreBefore(true);
-
-        setMessages((prev) => {
-          const combined = [...prev, ...newerMsgs];
-          if (combined.length > 100) {
-            return combined.slice(combined.length - 100);
-          }
           return combined;
         });
       } catch (err) {
-        console.error('Failed to load newer messages', err);
+        console.error('Failed to fetch older messages', err);
       } finally {
         setFetchingPage(false);
       }
     }
   };
 
-  // WebSocket listeners
+  // WebSocket event handler
   useEffect(() => {
-    if (!ws) return;
-    const unsubMsg = ws.subscribe('CHAT_MESSAGE_CREATED', (data) => {
-      const incomingConvoId = data.conversation_id;
-      const incomingMsg = data.message;
+    if (!ws?.lastMessage) return;
 
-      if (incomingConvoId === conversationId) {
+    const event = ws.lastMessage;
+
+    if (event.type === 'CHAT_MESSAGE_CREATED') {
+      const { conversation_id, message } = event;
+
+      if (conversation_id === conversationId) {
         setMessages((prev) => {
-          if (prev.some((m) => m.id === incomingMsg.id)) return prev;
-          if (hasMoreAfter) return prev;
-          const combined = [...prev, incomingMsg];
-          if (combined.length > 100) {
-            setHasMoreBefore(true);
-            return combined.slice(combined.length - 100);
-          }
-          return combined;
+          if (prev.some((m) => m.id === message.id)) return prev;
+          return [...prev, message];
         });
+
         conversationsAPI.markRead(conversationId).catch(() => {});
 
         setTimeout(() => {
-          const container = chatMessagesRef.current;
-          if (container) {
+          if (chatMessagesRef.current) {
+            const container = chatMessagesRef.current;
             const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-            const isOwn = incomingMsg.sender_id === currentUser?.id;
-            if (isNearBottom || isOwn) {
-              container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-              setNewIncomingCount(0);
+            if (isNearBottom) {
+              scrollToBottom('smooth');
             } else {
-              setNewIncomingCount((prev) => prev + 1);
+              setNewIncomingCount((c) => c + 1);
             }
           }
         }, 50);
       }
 
-      setConversations((prev) => {
-        const index = prev.findIndex((c) => c.id === incomingConvoId);
-        if (index !== -1) {
-          const updated = {
-            ...prev[index],
-            last_message: incomingMsg,
-            unread_count: (prev[index].unread_count || 0) + (incomingConvoId !== conversationId ? 1 : 0),
-            updated_at: incomingMsg.created_at,
-          };
-          return [updated, ...prev.filter((_, i) => i !== index)];
-        } else {
-          loadConversations();
-          return prev;
-        }
-      });
-    });
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id === conversation_id) {
+            return {
+              ...c,
+              last_message: message,
+              updated_at: message.created_at,
+              unread_count:
+                c.id === conversationId
+                  ? 0
+                  : (c.unread_count || 0) + (message.sender_id !== currentUser?.id ? 1 : 0),
+            };
+          }
+          return c;
+        })
+      );
+    }
 
-    const unsubRead = ws.subscribe('CHAT_MESSAGES_READ', (data) => {
-      if (data.conversation_id === conversationId) {
+    if (event.type === 'CHAT_MESSAGES_READ') {
+      const { conversation_id, reader_id } = event;
+      if (conversation_id === conversationId) {
         setMessages((prev) =>
           prev.map((m) => {
-            const currentReaders = m.read_by || [];
-            if (!currentReaders.includes(data.reader_id)) {
-              return { ...m, read_by: [...currentReaders, data.reader_id] };
+            if (!m.read_by) m.read_by = [];
+            if (!m.read_by.includes(reader_id)) {
+              return { ...m, read_by: [...m.read_by, reader_id] };
             }
             return m;
           })
         );
       }
-    });
+    }
 
-    const unsubFile = ws.subscribe('FILE_READY', (data) => {
-      if (data.conversation_id === conversationId) {
-        setMessages((prev) => [...prev, data.message]);
-      }
-    });
-
-    const unsubGuestReq = ws.subscribe('GUEST_REQUEST_RECEIVED', () => {
+    if (event.type === 'GUEST_REQUEST_RECEIVED') {
       loadGuestRequests();
-    });
+    }
+  }, [ws?.lastMessage, conversationId, currentUser]);
 
-    const unsubGuestAcc = ws.subscribe('GUEST_REQUEST_ACCEPTED', (data) => {
-      loadConversations();
-      if (data.conversation_id) {
-        navigate(`/chat/${data.conversation_id}`);
-      }
-    });
-
-    return () => {
-      unsubMsg();
-      unsubRead();
-      unsubFile();
-      unsubGuestReq();
-      unsubGuestAcc();
-    };
-  }, [ws, conversationId, loadGuestRequests, loadConversations, navigate]);
-
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
     if (!newMessage.trim() || !conversationId || sendingMessage) return;
+
     const content = newMessage.trim();
     setNewMessage('');
 
@@ -445,8 +410,9 @@ const handleClearChat = async () => {
     const tempCreatedAt = new Date(Date.now() + (window.serverTimeOffset || 0)).toISOString();
     const tempMsg = {
       id: tempId,
-      content,
+      conversation_id: conversationId,
       sender_id: currentUser.id,
+      content,
       sender: { id: currentUser.id, name: currentUser.name, avatar_url: currentUser.avatar_url },
       created_at: tempCreatedAt,
       type: 'text',
@@ -523,12 +489,10 @@ const handleClearChat = async () => {
 
   const handleUserSelect = async (user) => {
     if (user.is_external) {
-      // Out-of-org / guest flow: Prompt for initial message request (Google Chat style)
       setSelectedExternalUser(user);
       return;
     }
 
-    // In-org member direct message
     try {
       const res = await conversationsAPI.create({
         type: 'direct',
@@ -548,6 +512,32 @@ const handleClearChat = async () => {
     }
   };
 
+  const handleCreateGroupChat = async (e) => {
+    e.preventDefault();
+    if (!groupName.trim() || groupSelectedMembers.length === 0) {
+      alert('Please provide a group name and select at least one member.');
+      return;
+    }
+
+    try {
+      const res = await conversationsAPI.create({
+        type: 'group',
+        name: groupName.trim(),
+        member_ids: groupSelectedMembers,
+        organization_id: currentOrg?.id,
+      });
+      const convo = res.data;
+      setConversations((prev) => [convo, ...prev]);
+      navigate(`/chat/${convo.id}`);
+      setShowNewChat(false);
+      setGroupName('');
+      setGroupSelectedMembers([]);
+    } catch (err) {
+      console.error('Failed to create group chat', err);
+      alert('Failed to create group chat');
+    }
+  };
+
   const handleSendExternalRequest = async () => {
     if (!selectedExternalUser) return;
     try {
@@ -555,7 +545,7 @@ const handleClearChat = async () => {
         target_user_id: selectedExternalUser.id,
         message: externalReqMessage.trim() || 'Hi, I would like to connect with you.',
       });
-      alert(`Chat request sent to ${selectedExternalUser.name}. They will be able to accept or decline.`);
+      alert(`Chat request sent to ${selectedExternalUser.name}.`);
       setSelectedExternalUser(null);
       setExternalReqMessage('');
       setShowNewChat(false);
@@ -597,15 +587,6 @@ const handleClearChat = async () => {
     }
   };
 
-  const filteredConversations = conversations.filter((c) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      c.name?.toLowerCase().includes(q) ||
-      c.members?.some((m) => m.name?.toLowerCase().includes(q))
-    );
-  });
-
   const formatTime = (dateStr) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -641,12 +622,79 @@ const handleClearChat = async () => {
   };
 
   const getConversationAvatar = (convo) => {
-    if (convo.type === 'channel') return <Hash size={18} />;
-    if (convo.type === 'group') return <Users size={16} />;
+    if (convo.type === 'org_broadcast') return <Radio size={16} color="#0052CC" />;
+    if (convo.type === 'team_broadcast') return <Building size={16} color="#00875A" />;
+    if (convo.type === 'project_broadcast') return <Briefcase size={16} color="#6554C0" />;
+    if (convo.type === 'channel') return <Hash size={16} />;
+    if (convo.type === 'group') return <Users size={16} color="#0052CC" />;
     const other = convo.members?.find((m) => m.id !== currentUser?.id);
     if (other?.avatar_url) return <img src={other.avatar_url} alt="" />;
     return <User size={16} />;
   };
+
+  // Group conversations into categories
+  const filterByQuery = (list) => {
+    if (!searchQuery) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.members?.some((m) => m.name?.toLowerCase().includes(q))
+    );
+  };
+
+  const orgBroadcasts = filterByQuery(conversations.filter((c) => c.type === 'org_broadcast'));
+  const teamBroadcasts = filterByQuery(conversations.filter((c) => c.type === 'team_broadcast'));
+  const projectBroadcasts = filterByQuery(conversations.filter((c) => c.type === 'project_broadcast'));
+  const groupChats = filterByQuery(conversations.filter((c) => c.type === 'group' || c.type === 'channel'));
+  const directChats = filterByQuery(conversations.filter((c) => c.type === 'direct'));
+
+  const renderConversationItem = (convo) => (
+    <div
+      key={convo.id}
+      className={`conversation-item ${convo.id === conversationId ? 'active' : ''} ${convo.unread_count > 0 ? 'unread' : ''}`}
+      onClick={() => navigate(`/chat/${convo.id}`)}
+    >
+      <div className="conversation-avatar">{getConversationAvatar(convo)}</div>
+      <div className="conversation-info">
+        <div className="conversation-name truncate" style={{ fontSize: '13px', fontWeight: 600 }}>
+          {getConversationName(convo)}
+        </div>
+        <div className="conversation-last-msg truncate" style={{ fontSize: '11px', color: '#7A869A' }}>
+          {convo.last_message?.content || 'No messages yet'}
+        </div>
+      </div>
+      <div className="conversation-meta">
+        <span className="conversation-time">{formatTime(convo.last_message?.created_at)}</span>
+        {convo.unread_count > 0 && <span className="badge badge-count">{convo.unread_count}</span>}
+      </div>
+    </div>
+  );
+
+  const renderSectionHeader = (title, count, sectionKey, icon) => (
+    <div
+      onClick={() => toggleSection(sectionKey)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '8px 12px 4px 12px',
+        cursor: 'pointer',
+        fontSize: '11px',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+        color: '#5E6C84',
+        userSelect: 'none',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {icon}
+        <span>{title} ({count})</span>
+      </div>
+      {collapsedSections[sectionKey] ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+    </div>
+  );
 
   return (
     <div className="chat-page">
@@ -658,15 +706,22 @@ const handleClearChat = async () => {
         style={{ display: 'none' }}
       />
 
-      {/* Chat Sidebar — Conversation List */}
+      {/* Chat Sidebar — Grouped Slack-style Channels */}
       <div className="chat-sidebar">
         <div className="chat-sidebar-header">
-          <h2>Messages</h2>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '16px' }}>Slack & Jira Chat</h2>
+            {currentOrg && (
+              <span style={{ fontSize: '11px', color: '#0052CC', fontWeight: 600 }}>
+                🏢 {currentOrg.name}
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 4 }}>
             <button
               className="btn btn-icon btn-ghost"
               onClick={() => setShowGuestRequests(!showGuestRequests)}
-              title="Guest / Message Requests"
+              title="Message Requests"
             >
               <UserPlus size={18} />
               {guestRequests.length > 0 && (
@@ -675,7 +730,7 @@ const handleClearChat = async () => {
                 </span>
               )}
             </button>
-            <button className="btn btn-icon btn-ghost" onClick={() => setShowNewChat(!showNewChat)} title="New conversation">
+            <button className="btn btn-icon btn-ghost" onClick={() => setShowNewChat(!showNewChat)} title="New chat or group">
               <Plus size={18} />
             </button>
           </div>
@@ -685,7 +740,7 @@ const handleClearChat = async () => {
           <Search size={14} className="chat-search-icon" />
           <input
             type="text"
-            placeholder="Search conversations..."
+            placeholder="Search channels & DMs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -733,145 +788,200 @@ const handleClearChat = async () => {
           </div>
         )}
 
-        {/* New Chat — Search & User picker */}
+        {/* New Chat / Group Modal Panel */}
         {showNewChat && (
-          <div className="new-chat-panel">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div className="new-chat-title" style={{ padding: 0 }}>Start a conversation</div>
+          <div className="new-chat-panel" style={{ padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className={`jira-btn ${newChatTab === 'direct' ? 'jira-btn-primary' : 'jira-btn-secondary'}`}
+                  style={{ fontSize: '11px', padding: '4px 10px' }}
+                  onClick={() => setNewChatTab('direct')}
+                >
+                  1:1 Direct Chat
+                </button>
+                <button
+                  className={`jira-btn ${newChatTab === 'group' ? 'jira-btn-primary' : 'jira-btn-secondary'}`}
+                  style={{ fontSize: '11px', padding: '4px 10px' }}
+                  onClick={() => setNewChatTab('group')}
+                >
+                  👥 New Org Group
+                </button>
+              </div>
               <button className="btn btn-icon btn-ghost" onClick={() => { setShowNewChat(false); setSelectedExternalUser(null); }}>
                 <X size={14} />
               </button>
             </div>
 
-            {selectedExternalUser ? (
-              <div style={{ padding: '8px', background: '#FFFFFF', borderRadius: '6px', border: '1px solid #DFE1E6' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#172B4D', marginBottom: '4px' }}>
-                  Send Chat Request to {selectedExternalUser.name}
-                </div>
-                <div style={{ fontSize: '11px', color: '#5E6C84', marginBottom: '10px' }}>
-                  {selectedExternalUser.email} · <span className="badge badge-warning" style={{ fontSize: '10px' }}>Out of Organization</span>
-                </div>
-                <textarea
-                  rows={3}
-                  value={externalReqMessage}
-                  onChange={(e) => setExternalReqMessage(e.target.value)}
-                  placeholder="Introduce yourself or state purpose..."
-                  className="jira-input"
-                  style={{ fontSize: '12px', marginBottom: '10px' }}
-                />
-                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setSelectedExternalUser(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={handleSendExternalRequest}
-                  >
-                    Send Request
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div style={{ position: 'relative', marginBottom: 8 }}>
-                  <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#7A869A' }} />
-                  <input
-                    type="text"
-                    placeholder="Search by name or email..."
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 8px 6px 26px',
-                      fontSize: '12px',
-                      borderRadius: '4px',
-                      border: '1px solid #DFE1E6',
-                      outline: 'none',
-                    }}
-                    autoFocus
+            {newChatTab === 'direct' ? (
+              selectedExternalUser ? (
+                <div style={{ padding: '8px', background: '#FFFFFF', borderRadius: '6px', border: '1px solid #DFE1E6' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#172B4D', marginBottom: '4px' }}>
+                    Send Chat Request to {selectedExternalUser.name}
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={externalReqMessage}
+                    onChange={(e) => setExternalReqMessage(e.target.value)}
+                    placeholder="Message..."
+                    className="jira-input"
+                    style={{ fontSize: '12px', marginBottom: '10px' }}
                   />
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setSelectedExternalUser(null)}>
+                      Cancel
+                    </button>
+                    <button className="btn btn-primary btn-sm" onClick={handleSendExternalRequest}>
+                      Send Request
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div style={{ position: 'relative', marginBottom: 8 }}>
+                    <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#7A869A' }} />
+                    <input
+                      type="text"
+                      placeholder="Search any user..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px 6px 26px',
+                        fontSize: '12px',
+                        borderRadius: '4px',
+                        border: '1px solid #DFE1E6',
+                      }}
+                      autoFocus
+                    />
+                  </div>
 
-                {searchingUsers ? (
-                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: '#7A869A' }}>
-                    Searching users...
-                  </div>
-                ) : userSearchQuery.trim() && searchedUsers.length === 0 ? (
-                  <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: '#7A869A' }}>
-                    No users found matching "{userSearchQuery}"
-                  </div>
-                ) : (
-                  <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {searchedUsers.map((user) => (
-                      <button
-                        key={user.id}
-                        className="new-chat-user"
-                        onClick={() => handleUserSelect(user)}
-                        style={{ border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
-                      >
-                        {user.avatar_url ? (
-                          <img src={user.avatar_url} alt="" className="avatar avatar-sm" />
-                        ) : (
+                  {searchingUsers ? (
+                    <div style={{ padding: '12px', textAlign: 'center', fontSize: '12px', color: '#7A869A' }}>
+                      Searching...
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {searchedUsers.map((user) => (
+                        <button
+                          key={user.id}
+                          className="new-chat-user"
+                          onClick={() => handleUserSelect(user)}
+                          style={{ border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', padding: 6 }}
+                        >
                           <div className="avatar avatar-sm">{user.name?.[0]}</div>
-                        )}
-                        <div className="new-chat-user-info" style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span className="new-chat-user-name" style={{ fontSize: '13px', fontWeight: 600 }}>{user.name}</span>
-                            {user.is_external && (
-                              <span className="badge badge-neutral" style={{ fontSize: '9px', padding: '1px 4px' }}>Guest</span>
-                            )}
+                          <div className="new-chat-user-info" style={{ flex: 1 }}>
+                            <span style={{ fontSize: '12px', fontWeight: 600 }}>{user.name}</span>
+                            <div style={{ fontSize: '10px', color: '#7A869A' }}>{user.email}</div>
                           </div>
-                          <div className="new-chat-user-email" style={{ fontSize: '11px', color: '#7A869A' }}>{user.email}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )
+            ) : (
+              /* CREATE ORG GROUP CHAT */
+              <form onSubmit={handleCreateGroupChat} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input
+                  type="text"
+                  placeholder="Group Name (e.g. Frontend Devs, Leads)"
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+                  className="jira-input"
+                  style={{ fontSize: '12px' }}
+                  required
+                />
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#5E6C84' }}>Select Org Members:</div>
+                <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #DFE1E6', borderRadius: 4, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {orgMemberList
+                    .filter((m) => m.user_id !== currentUser?.id)
+                    .map((m) => {
+                      const isChecked = groupSelectedMembers.includes(m.user_id);
+                      return (
+                        <label key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setGroupSelectedMembers([...groupSelectedMembers, m.user_id]);
+                              } else {
+                                setGroupSelectedMembers(groupSelectedMembers.filter((id) => id !== m.user_id));
+                              }
+                            }}
+                          />
+                          <span>{m.user?.name}</span>
+                        </label>
+                      );
+                    })}
+                </div>
+                <button type="submit" className="jira-btn jira-btn-primary" style={{ fontSize: '12px' }}>
+                  Create Org Group Chat
+                </button>
+              </form>
             )}
           </div>
         )}
 
-        <div className="conversation-list">
+        {/* CATEGORIZED CONVERSATIONS LIST */}
+        <div className="conversation-list" style={{ overflowY: 'auto' }}>
           {loadingConvos ? (
             <div className="chat-loading">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="skeleton" style={{ height: 56, margin: '4px 8px' }} />
+                <div key={i} className="skeleton" style={{ height: 48, margin: '4px 8px' }} />
               ))}
             </div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="chat-empty-list">
-              <MessageCircle size={32} className="chat-empty-icon" />
-              <p>No conversations yet</p>
-              <span>Click + to start chatting</span>
-            </div>
           ) : (
-            filteredConversations.map((convo) => (
-              <div
-                key={convo.id}
-                className={`conversation-item ${convo.id === conversationId ? 'active' : ''} ${convo.unread_count > 0 ? 'unread' : ''}`}
-                onClick={() => navigate(`/chat/${convo.id}`)}
-              >
-                <div className="conversation-avatar">
-                  {getConversationAvatar(convo)}
+            <>
+              {/* 1. ORGANIZATION BROADCASTS */}
+              {orgBroadcasts.length > 0 && (
+                <div>
+                  {renderSectionHeader('Organization', orgBroadcasts.length, 'org', <Radio size={13} color="#0052CC" />)}
+                  {!collapsedSections['org'] && orgBroadcasts.map(renderConversationItem)}
                 </div>
-                <div className="conversation-info">
-                  <div className="conversation-name truncate">{getConversationName(convo)}</div>
-                  <div className="conversation-last-msg truncate">
-                    {convo.last_message?.content || 'No messages yet'}
-                  </div>
+              )}
+
+              {/* 2. TEAM BROADCASTS */}
+              {teamBroadcasts.length > 0 && (
+                <div>
+                  {renderSectionHeader('Team Channels', teamBroadcasts.length, 'team', <Building size={13} color="#00875A" />)}
+                  {!collapsedSections['team'] && teamBroadcasts.map(renderConversationItem)}
                 </div>
-                <div className="conversation-meta">
-                  <span className="conversation-time">{formatTime(convo.last_message?.created_at)}</span>
-                  {convo.unread_count > 0 && (
-                    <span className="badge badge-count">{convo.unread_count}</span>
-                  )}
+              )}
+
+              {/* 3. PROJECT BROADCASTS */}
+              {projectBroadcasts.length > 0 && (
+                <div>
+                  {renderSectionHeader('Project Channels', projectBroadcasts.length, 'project', <Briefcase size={13} color="#6554C0" />)}
+                  {!collapsedSections['project'] && projectBroadcasts.map(renderConversationItem)}
                 </div>
-              </div>
-            ))
+              )}
+
+              {/* 4. GROUP CHATS */}
+              {groupChats.length > 0 && (
+                <div>
+                  {renderSectionHeader('Group Chats', groupChats.length, 'group', <Users size={13} color="#0052CC" />)}
+                  {!collapsedSections['group'] && groupChats.map(renderConversationItem)}
+                </div>
+              )}
+
+              {/* 5. DIRECT MESSAGES */}
+              {directChats.length > 0 && (
+                <div>
+                  {renderSectionHeader('Direct Messages', directChats.length, 'direct', <User size={13} color="#42526E" />)}
+                  {!collapsedSections['direct'] && directChats.map(renderConversationItem)}
+                </div>
+              )}
+
+              {conversations.length === 0 && (
+                <div className="chat-empty-list">
+                  <MessageCircle size={32} className="chat-empty-icon" />
+                  <p>No conversations yet</p>
+                  <span>Click + to start chatting or create a group</span>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -883,20 +993,37 @@ const handleClearChat = async () => {
             <div className="chat-welcome-icon">
               <MessageCircle size={48} />
             </div>
-            <h2>Welcome to Chat</h2>
-            <p>Select a conversation or start a new one to begin messaging</p>
+            <h2>Welcome to Unified Chat & Work Hub</h2>
+            <p>Select an Organization broadcast, Team channel, Project channel, Group, or 1:1 conversation</p>
           </div>
         ) : (
           <>
             {/* Chat header */}
             <div className="chat-header">
               <div className="chat-header-info">
-                <h3>{activeConversation ? getConversationName(activeConversation) : '...'}</h3>
-                {activeConversation?.type === 'channel' && (
-                  <span className="chat-header-members">
-                    {activeConversation.members?.length || 0} members
-                  </span>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h3 style={{ margin: 0 }}>
+                    {activeConversation ? getConversationName(activeConversation) : '...'}
+                  </h3>
+                  {activeConversation?.type === 'org_broadcast' && (
+                    <span className="badge badge-primary" style={{ fontSize: '10px' }}>
+                      📢 Org Broadcast
+                    </span>
+                  )}
+                  {activeConversation?.type === 'team_broadcast' && (
+                    <span className="badge" style={{ fontSize: '10px', background: '#E3FCEF', color: '#006644' }}>
+                      🏢 Team Channel
+                    </span>
+                  )}
+                  {activeConversation?.type === 'project_broadcast' && (
+                    <span className="badge" style={{ fontSize: '10px', background: '#EAE6FF', color: '#403294' }}>
+                      🎯 Project Channel
+                    </span>
+                  )}
+                </div>
+                <span className="chat-header-members" style={{ fontSize: '11px', color: '#7A869A' }}>
+                  {activeConversation?.members?.length || 0} members · All members can broadcast
+                </span>
               </div>
               <div className="chat-header-actions">
                 {showMessageSearch ? (
@@ -974,7 +1101,7 @@ const handleClearChat = async () => {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="chat-messages-empty">
-                  <p>No messages yet. Say hello! 👋</p>
+                  <p>No messages yet. Send a message to get started! 👋</p>
                 </div>
               ) : (
                 filteredMessages.map((msg, idx) => {
@@ -1009,10 +1136,14 @@ const handleClearChat = async () => {
                     if (msg.type === 'file' && msg.metadata) {
                       return (
                         <div key={msg.id} className={`chat-message ${isOwn ? 'own' : 'other'}`}>
-                          {!isOwn && showAvatar && (
-                            <div className="message-avatar">
-                              <div className="avatar avatar-sm">{msg.sender?.name?.[0] || '?'}</div>
-                            </div>
+                          {!isOwn && (
+                            showAvatar ? (
+                              <div className="message-avatar">
+                                <div className="avatar avatar-sm">{msg.sender?.name?.[0] || '?'}</div>
+                              </div>
+                            ) : (
+                              <div className="message-avatar-spacer" style={{ width: 28, height: 28, flexShrink: 0 }} />
+                            )
                           )}
                           <div className="message-content">
                             {!isOwn && showAvatar && <div className="message-sender">{msg.sender?.name}</div>}
@@ -1048,54 +1179,68 @@ const handleClearChat = async () => {
                             </div>
                             <div className="chat-ticket-title">{msg.content}</div>
                             <div className="chat-ticket-meta">
-                              <span className="badge badge-primary">{msg.metadata.issue_key}</span>
-                              <span>{msg.metadata.project_name}</span>
+                              <span>Ticket: <b>{msg.metadata.issue_key}</b></span>
+                              {msg.metadata.status && (
+                                <span className="badge badge-neutral" style={{ fontSize: '10px' }}>
+                                  {msg.metadata.status}
+                                </span>
+                              )}
                             </div>
-                            <button
-                              className="btn btn-secondary btn-sm chat-ticket-btn"
-                              onClick={() => navigate('/my-work')}
-                            >
-                              <ExternalLink size={13} />
-                              Open Ticket
-                            </button>
                           </div>
                         </div>
                       );
                     }
 
-                    // Standard text message
+                    // Regular Text Message
                     return (
-                      <div
-                        key={msg.id}
-                        className={`chat-message ${isOwn ? 'own' : 'other'} ${msg._pending ? 'pending' : ''}`}
-                      >
-                        {!isOwn && showAvatar && (
-                          <div className="message-avatar">
-                            {msg.sender?.avatar_url ? (
-                              <img src={msg.sender.avatar_url} alt="" className="avatar avatar-sm" />
-                            ) : (
+                      <div key={msg.id} className={`chat-message ${isOwn ? 'own' : 'other'}`}>
+                        {!isOwn && (
+                          showAvatar ? (
+                            <div className="message-avatar">
                               <div className="avatar avatar-sm">{msg.sender?.name?.[0] || '?'}</div>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <div className="message-avatar-spacer" style={{ width: 28, height: 28, flexShrink: 0 }} />
+                          )
                         )}
-                        <div className={`message-content ${!showAvatar && !isOwn ? 'no-avatar' : ''}`}>
+                        <div className="message-content">
                           {!isOwn && showAvatar && (
-                            <div className="message-sender">{msg.sender?.name}</div>
+                            <div className="message-sender" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                              <span style={{ fontWeight: 600 }}>{msg.sender?.name || 'Member'}</span>
+                              {msg.sender?.role && (
+                                <span
+                                  style={{
+                                    fontSize: '9px',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    padding: '1px 5px',
+                                    borderRadius: '3px',
+                                    letterSpacing: '0.4px',
+                                    background: msg.sender.role === 'super_admin' ? '#FFE380' : msg.sender.role === 'org_admin' ? '#DEEBFF' : '#EBECF0',
+                                    color: msg.sender.role === 'super_admin' ? '#7A5E00' : msg.sender.role === 'org_admin' ? '#0747A6' : '#42526E',
+                                  }}
+                                >
+                                  {msg.sender.role === 'super_admin' ? 'Super Admin' : msg.sender.role === 'org_admin' ? 'Org Admin' : msg.sender.role}
+                                </span>
+                              )}
+                            </div>
                           )}
                           <div className="message-bubble">
-                            <span className="message-text">{msg.content}</span>
-                            <span className="message-time">
-                              {formatTime(msg.created_at)}
+                            <div className="message-text">{msg.content}</div>
+                            <div className="message-time">
+                              {formatMessageBubbleTime(msg.created_at)}
                               {isOwn && (
-                                msg._pending ? (
-                                  <Clock size={12} title="Sending..." className="msg-status-icon pending" />
-                                ) : (msg.read_by && msg.read_by.some((uid) => uid !== currentUser?.id)) ? (
-                                  <CheckCheck size={14} title="Seen" className="msg-status-icon seen" />
-                                ) : (
-                                  <Check size={13} title="Sent" className="msg-status-icon sent" />
-                                )
+                                <span className="message-status" style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 2 }}>
+                                  {msg._pending ? (
+                                    <Clock size={12} style={{ opacity: 0.7 }} />
+                                  ) : msg.read_by && msg.read_by.length > 1 ? (
+                                    <CheckCheck size={13} color="#57D9A3" style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.3))' }} title="Read" />
+                                  ) : (
+                                    <Check size={12} style={{ opacity: 0.8 }} title="Sent" />
+                                  )}
+                                </span>
                               )}
-                            </span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1106,9 +1251,7 @@ const handleClearChat = async () => {
                     <React.Fragment key={msg.id || idx}>
                       {isNewDay && (
                         <div className="chat-date-separator">
-                          <span className="chat-date-separator-text">
-                            {getSeparatorText(msgDate)}
-                          </span>
+                          <span className="chat-date-separator-text">{getSeparatorText(msgDate)}</span>
                         </div>
                       )}
                       {renderMessage()}
@@ -1119,71 +1262,55 @@ const handleClearChat = async () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Floating scroll to bottom badge */}
-            {newIncomingCount > 0 && (
-              <button 
-                className="chat-scroll-bottom-badge" 
-                onClick={() => {
-                  scrollToBottom('smooth');
-                  setNewIncomingCount(0);
-                }}
-              >
-                <ArrowDown size={14} />
-                <span>{newIncomingCount} {newIncomingCount === 1 ? 'new message' : 'new messages'}</span>
-              </button>
-            )}
-
-            {/* Upload Progress Bar */}
+            {/* Upload progress banner */}
             {uploadProgress && (
-              <div className="chat-upload-progress-bar">
-                <div className="chat-upload-info">
-                  <span>Uploading {uploadProgress.filename}...</span>
-                  <span>{uploadProgress.percentage}%</span>
+              <div className="chat-upload-progress">
+                <span>Uploading {uploadProgress.filename}...</span>
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{ width: `${uploadProgress.percentage}%` }} />
                 </div>
-                <div className="chat-progress-track">
-                  <div className="chat-progress-fill" style={{ width: `${uploadProgress.percentage}%` }} />
-                </div>
+                <span>{uploadProgress.percentage}%</span>
               </div>
             )}
 
-            {/* Message Input */}
+            {/* Input area */}
             <div className="chat-input-area">
-              <div className="chat-input-container">
+              <form className="chat-input-container" onSubmit={handleSendMessage}>
                 <button
+                  type="button"
                   className="btn btn-icon btn-ghost chat-input-btn"
-                  title="Attach file"
                   onClick={() => fileInputRef.current?.click()}
+                  title="Attach file"
                 >
                   <Paperclip size={18} />
                 </button>
-                <textarea
+
+                <input
+                  type="text"
                   ref={inputRef}
-                  className="chat-input"
-                  placeholder="Type a message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  rows={1}
+                  placeholder={`Message ${activeConversation ? getConversationName(activeConversation) : ''}...`}
+                  className="chat-input"
+                  autoFocus
                 />
+
                 <div className="chat-emoji-picker-container" ref={emojiPickerRef}>
                   <button
+                    type="button"
                     className="btn btn-icon btn-ghost chat-input-btn"
-                    title="Emoji"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    title="Emoji"
                   >
                     <Smile size={18} />
                   </button>
                   {showEmojiPicker && (
                     <div className="chat-emoji-picker">
                       <div className="chat-emoji-grid">
-                        {COMMON_EMOJIS.map((emoji) => (
+                        {COMMON_EMOJIS.map((emoji, index) => (
                           <button
-                            key={emoji}
+                            key={index}
+                            type="button"
                             className="chat-emoji-btn"
                             onClick={() => handleEmojiClick(emoji)}
                           >
@@ -1194,97 +1321,71 @@ const handleClearChat = async () => {
                     </div>
                   )}
                 </div>
+
                 <button
-                  className={`btn btn-primary chat-send-btn ${!newMessage.trim() ? 'disabled' : ''}`}
-                  onClick={handleSendMessage}
+                  type="submit"
+                  className="btn btn-icon btn-primary chat-send-btn"
                   disabled={!newMessage.trim() || sendingMessage}
+                  title="Send message (Enter)"
                 >
                   <Send size={16} />
                 </button>
-              </div>
+              </form>
             </div>
           </>
         )}
+      </div>
 
-        {showAddMember && (
-          <div className="chat-modal-overlay">
-            <div className="chat-modal-card">
-              <div className="chat-modal-header">
-                <h3>Add member to channel</h3>
+      {/* MODAL: Add Member to Conversation */}
+      {showAddMember && (
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 440 }}>
+            <h2 className="modal-title">Add Member to Channel</h2>
+            <div style={{ position: 'relative', margin: '14px 0' }}>
+              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#7A869A' }} />
+              <input
+                type="text"
+                placeholder="Search user to add..."
+                value={memberSearchQuery}
+                onChange={(e) => setMemberSearchQuery(e.target.value)}
+                className="jira-input"
+                style={{ paddingLeft: 30, fontSize: '13px' }}
+                autoFocus
+              />
+            </div>
+            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {searchedMemberUsers.map((u) => (
                 <button
-                  className="btn btn-icon btn-ghost"
-                  onClick={() => {
-                    setShowAddMember(false);
-                    setMemberSearchQuery('');
-                    setSearchedMemberUsers([]);
+                  key={u.id}
+                  onClick={() => handleAddMember(u)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px',
+                    border: '1px solid #DFE1E6',
+                    borderRadius: 6,
+                    background: '#FFF',
+                    cursor: 'pointer',
+                    textAlign: 'left',
                   }}
                 >
-                  <X size={16} />
+                  <div className="avatar avatar-sm">{u.name?.[0]}</div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '12px' }}>{u.name}</div>
+                    <div style={{ fontSize: '10px', color: '#7A869A' }}>{u.email}</div>
+                  </div>
                 </button>
-              </div>
-              <div className="chat-modal-body">
-                <div style={{ position: 'relative', marginBottom: '12px' }}>
-                  <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-neutral-400)' }} />
-                  <input
-                    type="text"
-                    className="input-field"
-                    style={{ paddingLeft: '28px' }}
-                    placeholder="Search users by name or email..."
-                    value={memberSearchQuery}
-                    onChange={(e) => setMemberSearchQuery(e.target.value)}
-                    autoFocus
-                  />
-                </div>
-                
-                <div className="chat-modal-results">
-                  {searchingMemberUsers ? (
-                    <div style={{ padding: '8px 0', fontSize: '12px', color: 'var(--color-neutral-500)' }}>Searching...</div>
-                  ) : memberSearchQuery.trim() && searchedMemberUsers.length === 0 ? (
-                    <div style={{ padding: '8px 0', fontSize: '12px', color: 'var(--color-neutral-500)' }}>No users found</div>
-                  ) : (
-                    searchedMemberUsers.map((user) => (
-                      <div key={user.id} className="chat-modal-result-item" onClick={() => handleAddMember(user)}>
-                        <div className="avatar avatar-sm">
-                          {user.name?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: 600 }}>{user.name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>{user.email}</div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+              ))}
+            </div>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="jira-btn jira-btn-secondary" onClick={() => setShowAddMember(false)}>
+                Cancel
+              </button>
             </div>
           </div>
-        )}
-{showClearConfirm && (
-          <div className="chat-modal-overlay">
-            <div className="chat-modal-card" style={{ width: '360px' }}>
-              <div className="chat-modal-header">
-                <h3>Clear Chat History</h3>
-                <button className="btn btn-icon btn-ghost" onClick={() => setShowClearConfirm(false)}>
-                  <X size={16} />
-                </button>
-              </div>
-              <div className="chat-modal-body" style={{ textAlign: 'center', padding: '24px 20px' }}>
-                <p style={{ fontSize: '14px', color: 'var(--color-neutral-800)', marginBottom: '20px' }}>
-                  Are you sure you want to clear all message history in this conversation? This action cannot be undone.
-                </p>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                  <button className="btn btn-secondary" onClick={() => setShowClearConfirm(false)}>
-                    Cancel
-                  </button>
-                  <button className="btn btn-danger" onClick={handleClearChat}>
-                    Clear History
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

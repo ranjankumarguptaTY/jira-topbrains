@@ -11,7 +11,9 @@ import {
   UserX,
   UserCheck,
   AlertCircle,
-  Info
+  Info,
+  Key,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
@@ -120,6 +122,31 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
         },
       });
     }
+  };
+
+  const handleResetPasswordDefault = (u) => {
+    showConfirm({
+      title: `Reset Password for ${u.name}?`,
+      message: `Are you sure you want to reset the password for ${u.name} (${u.email}) to the default value: "Password@123"? The user will be able to log in immediately using this password.`,
+      confirmText: 'Reset to Password@123',
+      cancelText: 'Cancel',
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          const res = await authApi.adminResetPasswordDefault(u.id);
+          showToast({
+            message: res.message || `Password for ${u.name} reset to Password@123 successfully!`,
+            type: 'success',
+            duration: 6000,
+          });
+        } catch (err) {
+          showToast({
+            message: err.response?.data?.detail || 'Failed to reset user password',
+            type: 'error',
+          });
+        }
+      },
+    });
   };
 
   const displayedUsers = users.filter((u) => {
@@ -325,6 +352,27 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
                           <option value="pm">Product Manager</option>
                           <option value="qa">QA / Tester</option>
                         </select>
+
+                        {/* Reset Password to Default */}
+                        {!isSelf && (
+                          <button
+                            onClick={() => handleResetPasswordDefault(u)}
+                            className="jira-btn jira-btn-ghost"
+                            style={{
+                              fontSize: '12px',
+                              padding: '5px 10px',
+                              height: '32px',
+                              color: '#0052CC',
+                              borderColor: '#B3D4FF',
+                              backgroundColor: '#DEEBFF',
+                              fontWeight: 600,
+                            }}
+                            title="Reset password to default Password@123"
+                          >
+                            <Key size={14} />
+                            <span>Reset Pwd</span>
+                          </button>
+                        )}
 
                         {/* Deactivate / Reactivate Action */}
                         {!isSelf && !isMasterRoot && (

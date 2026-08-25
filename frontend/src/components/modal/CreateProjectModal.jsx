@@ -1,25 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, FolderPlus } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
-import { projectsApi } from '../../api/projects';
+import { projectsAPI, teamsAPI } from '../../services/api';
 
 export const CreateProjectModal = () => {
   const { isCreateProjectOpen, setIsCreateProjectOpen, selectProject, loadProjects } = useProject();
-  const { currentUser } = useAuth();
+  const { currentUser, currentOrg } = useAuth();
   const { showToast } = useModal();
 
   const [name, setName] = useState('');
   const [key, setKey] = useState('');
   const [description, setDescription] = useState('');
+  const [teamId, setTeamId] = useState('');
+  const [teams, setTeams] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load teams when modal opens
+  useEffect(() => {
+    if (isCreateProjectOpen && currentOrg?.id) {
+      teamsAPI.list(currentOrg.id).then((res) => {
+        setTeams(res.data || []);
+        if (res.data?.length > 0 && !teamId) {
+          setTeamId(res.data[0].id);
+        }
+      }).catch((err) => console.warn('Failed to load teams for project creation', err));
+    }
+  }, [isCreateProjectOpen, currentOrg, teamId]);
 
   if (!isCreateProjectOpen) return null;
 
   const handleNameChange = (val) => {
     setName(val);
-    // Auto-generate key from first letters
     if (!key || key.length <= 4) {
       const generated = val
         .split(' ')
@@ -38,13 +51,16 @@ export const CreateProjectModal = () => {
 
     try {
       setIsSubmitting(true);
-      const newProj = await projectsApi.create({
+      const res = await projectsAPI.create({
         name: name.trim(),
         key: key.trim().toUpperCase(),
         description: description.trim(),
         lead_id: currentUser?.id || null,
+        team_id: teamId || null,
+        organization_id: currentOrg?.id || null,
         category: 'Software',
       });
+      const newProj = res.data;
 
       await loadProjects();
       selectProject(newProj);
@@ -52,9 +68,10 @@ export const CreateProjectModal = () => {
       setName('');
       setKey('');
       setDescription('');
-      showToast({ message: `Project ${newProj.name} created!`, type: 'success' });
+      setTeamId('');
+      showToast({ message: `Project ${newProj.name} created with #project broadcast channel!`, type: 'success' });
     } catch (err) {
-      showToast({ message: 'Failed to create project: ' + err.message, type: 'error' });
+      showToast({ message: err.response?.data?.detail || 'Failed to create project', type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -74,7 +91,7 @@ export const CreateProjectModal = () => {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FolderPlus size={18} color="#0052CC" />
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#172B4D', margin: 0 }}>Create project</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#172B4D', margin: 0 }}>Create Jira project</h2>
           </div>
           <button
             onClick={() => setIsCreateProjectOpen(false)}
@@ -118,7 +135,30 @@ export const CreateProjectModal = () => {
                 required
               />
               <span style={{ fontSize: '11px', color: '#5E6C84', marginTop: '4px', display: 'block' }}>
-                Used as a prefix for all issue keys (e.g. {key || 'PROJ'}-123).
+                Prefix for all tickets in this project (e.g. {key || 'PROJ'}-123).
+              </span>
+            </div>
+
+            {/* Team Selection */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
+                Assign to Team
+              </label>
+              <select
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                className="jira-input"
+                style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
+              >
+                <option value="">-- No Team (Global Project) --</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    #{t.name} (Lead: {t.lead_name || 'None'})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: '11px', color: '#5E6C84', marginTop: '4px', display: 'block' }}>
+                Team members will automatically receive access and project broadcast notifications.
               </span>
             </div>
 
@@ -127,7 +167,7 @@ export const CreateProjectModal = () => {
                 Description
               </label>
               <textarea
-                rows={3}
+                rows={2}
                 placeholder="Brief summary of project scope..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -160,7 +200,7 @@ export const CreateProjectModal = () => {
               disabled={isSubmitting || !name.trim() || !key.trim()}
               className="jira-btn jira-btn-primary"
             >
-              {isSubmitting ? 'Creating...' : 'Create project'}
+              {isSubmitting ? 'Creating...' : 'Create project & Channel'}
             </button>
           </div>
         </form>

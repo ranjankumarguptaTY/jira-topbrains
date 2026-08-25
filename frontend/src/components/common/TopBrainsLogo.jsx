@@ -35,7 +35,7 @@ export const TopBrainsLogo = ({ size = 28, showText = true, textColor = '#172B4D
       </svg>
 
       {showText && (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1 }}>
           <span
             style={{
               fontSize: '18px',
@@ -49,14 +49,16 @@ export const TopBrainsLogo = ({ size = 28, showText = true, textColor = '#172B4D
           </span>
           <span
             style={{
-              fontSize: '16px',
-              fontWeight: 600,
+              fontSize: '8px',
+              fontWeight: 700,
               color: '#0052CC',
-              letterSpacing: '-0.02em',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
               lineHeight: 1,
+              marginTop: '2px',
             }}
           >
-            Jira
+            Agile
           </span>
         </div>
       )}

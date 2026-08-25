@@ -62,10 +62,26 @@ async def send_chat_request(
 
     # Send real-time notification
     from app.api.websocket import manager
+    from app.core.events import _create_notification
+
     await manager.send_to_user(req_in.target_user_id, {
         "type": "GUEST_REQUEST_RECEIVED",
         "request": doc,
     })
+
+    # Trigger in-app notification & push for the target user
+    requester_name = current_user.get("name", "Guest User")
+    preview_msg = req_in.message or "wants to start a conversation with you."
+    await _create_notification(
+        db=db,
+        user_id=req_in.target_user_id,
+        notif_type="guest_request",
+        title=f"Guest chat request from {requester_name}",
+        body=preview_msg,
+        entity_type="guest_request",
+        entity_id=str(request_doc["_id"]),
+        metadata={"requester_id": current_user["id"], "request_id": str(request_doc["_id"])}
+    )
 
     return doc
 
@@ -138,11 +154,26 @@ async def accept_chat_request(
 
     # Notify the requester
     from app.api.websocket import manager
+    from app.core.events import _create_notification
+
     await manager.send_to_user(req["requester_id"], {
         "type": "GUEST_REQUEST_ACCEPTED",
         "request_id": request_id,
         "conversation_id": convo_id,
     })
+
+    # Trigger notification for the requester
+    acceptor_name = current_user.get("name", "User")
+    await _create_notification(
+        db=db,
+        user_id=req["requester_id"],
+        notif_type="chat_message",
+        title=f"{acceptor_name} accepted your chat request",
+        body="You can now send direct messages and collaborate.",
+        entity_type="conversation",
+        entity_id=convo_id,
+        metadata={"conversation_id": convo_id}
+    )
 
     return {"status": "accepted", "conversation_id": convo_id}
 

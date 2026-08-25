@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # 1. MongoDB Database Service
+  # ==========================================
+  mongo:
+    image: mongo:7.0
+    container_name: topbrains-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - topbrains-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # 2. FastAPI Backend API & WebSocket Service
+  # ==========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: topbrains-backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      - MONGODB_URL=mongodb://mongo:27017
+      - DATABASE_NAME=topbrains_jira_db
+      - SECRET_KEY=${SECRET_KEY:-super-secret-jira-clone-jwt-key-change-in-production-123456789}
+      - SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL:-admin@topbrains.com}
+      - SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD:-adminpassword123}
+      - SUPER_ADMIN_NAME=${SUPER_ADMIN_NAME:-TopBrains Super Admin}
+      - AUTO_SEED=${AUTO_SEED:-false}
+      - ALLOWED_ORIGINS=*
+    volumes:
+      - file_transfers_data:/app/data/file-transfers
+    ports:
+      - "8000:8000"
+    networks:
+      - topbrains-net
+
+  # ==========================================
+  # 3. React Frontend + Nginx Web Server
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: topbrains-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - topbrains-net
+
+volumes:
+  mongo_data:
+    driver: local
+  file_transfers_data:
+    driver: local
+
+networks:
+  topbrains-net:
+    driver: bridge

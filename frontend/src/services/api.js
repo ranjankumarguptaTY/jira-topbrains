@@ -47,26 +47,63 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
-  listUsers: () => api.get('/auth/users'),
-  searchUsers: (query) => api.get('/auth/search', { params: { q: query } }),
+  listUsers: (orgId) => api.get('/auth/users', { params: orgId ? { org_id: orgId } : {} }),
+  searchUsers: (query, orgId, limit = 10, includeSelf = false) =>
+    api.get('/auth/search', {
+      params: {
+        q: query,
+        ...(orgId ? { org_id: orgId } : {}),
+        limit,
+        include_self: includeSelf,
+      },
+    }),
   adminCreateUser: (data) => api.post('/auth/admin/create-user', data),
   adminUpdateRole: (userId, role) => api.patch(`/auth/admin/users/${userId}/role`, { role }),
   adminUpdateStatus: (userId, isActive) => api.patch(`/auth/admin/users/${userId}/status`, { is_active: isActive }),
+  adminResetPasswordDefault: (userId) => api.post(`/auth/admin/users/${userId}/reset-password-default`),
+  changePassword: (currentPassword, newPassword) =>
+    api.post('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
 };
 
 // =============================================
 // ORGANIZATION API
 // =============================================
 export const orgAPI = {
+  list: () => api.get('/organizations'),
+  create: (data) => api.post('/organizations', data),
   getMine: () => api.get('/organizations/mine'),
+  get: (orgId) => api.get(`/organizations/${orgId}`),
   update: (orgId, data) => api.patch(`/organizations/${orgId}`, data),
+  delete: (orgId) => api.delete(`/organizations/${orgId}`),
+  // Org membership management
+  listMembers: (orgId) => api.get(`/organizations/${orgId}/members`),
+  addMember: (orgId, userId, roles) => api.post(`/organizations/${orgId}/members`, { user_id: userId, roles }),
+  updateMemberRoles: (orgId, userId, roles) => api.patch(`/organizations/${orgId}/members/${userId}`, { roles }),
+  removeMember: (orgId, userId) => api.delete(`/organizations/${orgId}/members/${userId}`),
+  // Org custom roles
+  listRoles: (orgId) => api.get(`/organizations/${orgId}/roles`),
+  createRole: (orgId, data) => api.post(`/organizations/${orgId}/roles`, data),
+  updateRole: (orgId, roleId, data) => api.put(`/organizations/${orgId}/roles/${roleId}`, data),
+  deleteRole: (orgId, roleId) => api.delete(`/organizations/${orgId}/roles/${roleId}`),
+  // Platform analytics
+  getPlatformAnalytics: (range = '30d', orgId = null) => {
+    const params = new URLSearchParams({ range_filter: range });
+    if (orgId) params.append('org_id', orgId);
+    return api.get(`/organizations/analytics/platform?${params.toString()}`);
+  },
+  // Organization Broadcasts
+  broadcastToPlatform: (data) => api.post('/organizations/broadcast/platform', data),
+  broadcastToOrg: (orgId, data) => api.post(`/organizations/${orgId}/broadcast`, data),
 };
 
 // =============================================
 // TEAMS API
 // =============================================
 export const teamsAPI = {
-  list: () => api.get('/teams'),
+  list: (orgId) => api.get('/teams', { params: orgId ? { org_id: orgId } : {} }),
   create: (data) => api.post('/teams', data),
   get: (teamId) => api.get(`/teams/${teamId}`),
   update: (teamId, data) => api.patch(`/teams/${teamId}`, data),
@@ -80,11 +117,15 @@ export const teamsAPI = {
 // PROJECTS API
 // =============================================
 export const projectsAPI = {
-  list: () => api.get('/projects'),
+  list: (params = {}) => api.get('/projects', { params }),
   create: (data) => api.post('/projects', data),
   get: (projectId) => api.get(`/projects/${projectId}`),
-  update: (projectId, data) => api.patch(`/projects/${projectId}`, data),
+  update: (projectId, data) => api.put(`/projects/${projectId}`, data),
   delete: (projectId) => api.delete(`/projects/${projectId}`),
+  // Project membership
+  listMembers: (projectId) => api.get(`/projects/${projectId}/members`),
+  addMember: (projectId, userId, role) => api.post(`/projects/${projectId}/members`, { user_id: userId, role }),
+  removeMember: (projectId, userId) => api.delete(`/projects/${projectId}/members/${userId}`),
 };
 
 // =============================================
@@ -177,6 +218,14 @@ export const fileTransfersAPI = {
   download: (transferId) => api.get(`/file-transfers/${transferId}/download`, { responseType: 'blob' }),
   completeDownload: (transferId) => api.post(`/file-transfers/${transferId}/download/complete`),
   cancel: (transferId) => api.post(`/file-transfers/${transferId}/cancel`),
+};
+
+// =============================================
+// MIGRATION API
+// =============================================
+export const migrateAPI = {
+  run: () => api.post('/migrate'),
+  status: () => api.get('/migrate/status'),
 };
 
 export default api;

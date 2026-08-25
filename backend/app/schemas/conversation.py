@@ -6,9 +6,19 @@ from datetime import datetime
 # CONVERSATION
 # =============================================
 class ConversationCreate(BaseModel):
-    type: Literal["direct", "group", "channel"] = "direct"
-    name: Optional[str] = None  # Required for group/channel
+    type: Literal[
+        "direct",           # 1:1 DM (independent, any user to any user)
+        "group",            # Org-level group chat
+        "channel",          # Generic channel (legacy)
+        "org_broadcast",    # #org — auto-created per org, all org members
+        "team_broadcast",   # #team — auto-created per team, all team members
+        "project_broadcast" # #project — auto-created per project, all project members
+    ] = "direct"
+    name: Optional[str] = None  # Required for group/channel/broadcast
     member_ids: List[str] = []  # User IDs to add
+    organization_id: Optional[str] = None  # For org-level groups and broadcasts
+    team_id: Optional[str] = None  # For team broadcasts
+    project_id: Optional[str] = None  # For project broadcasts
 
 class ConversationUpdate(BaseModel):
     name: Optional[str] = None
@@ -20,6 +30,10 @@ class ConversationResponse(BaseModel):
     members: List[dict] = []
     last_message: Optional[dict] = None
     unread_count: int = 0
+    organization_id: Optional[str] = None
+    team_id: Optional[str] = None
+    project_id: Optional[str] = None
+    created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

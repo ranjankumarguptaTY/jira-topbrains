@@ -14,7 +14,7 @@ import {
 import './MyWorkPage.css';
 
 const MyWorkPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, currentOrg, userOrgs, isSuperAdmin } = useAuth();
   const [issues, setIssues] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -195,6 +195,29 @@ const MyWorkPage = () => {
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="skeleton" style={{ height: 44, marginBottom: 4 }} />
             ))}
+          </div>
+        ) : (!currentOrg && (!userOrgs || userOrgs.length === 0) && !isSuperAdmin?.()) ? (
+          <div className="mywork-empty" style={{ padding: '60px 24px' }}>
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                backgroundColor: '#DEEBFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto',
+              }}
+            >
+              <AlertCircle size={30} color="#0052CC" />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#172B4D', marginBottom: '8px' }}>
+              No Organization or Projects Assigned
+            </h3>
+            <p style={{ fontSize: '14px', color: '#5E6C84', maxWidth: '440px', margin: '0 auto', lineHeight: 1.5 }}>
+              You are not currently assigned to any organization or project. Once an administrator assigns you to a project team, your assigned, created, and completed work will appear here.
+            </p>
           </div>
         ) : filteredIssues.length === 0 ? (
           <div className="mywork-empty">
