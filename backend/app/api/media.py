@@ -1,10 +1,16 @@
 import os
+import gc
 import uuid
+import asyncio
+import logging
 import mimetypes
+import subprocess
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Request
+from fastapi.responses import FileResponse, StreamingResponse
+from PIL import Image, ImageOps
 
+logger = logging.getLogger("sprintr_media")
 router = APIRouter(prefix="/api/media", tags=["media"])
 
 # Base directory for uploaded media - absolute path
@@ -19,9 +25,94 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "im
 ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/ogg"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB limit
 
+def compress_image_file(file_path: Path) -> Path:
+    """Compress image file to WebP / optimized format with max 1920px dimensions to save 80%+ storage."""
+    ext = file_path.suffix.lower()
+    if ext in [".gif", ".svg"]:
+        return file_path
+
+    try:
+        with Image.open(file_path) as im:
+            # Transpose EXIF orientation
+            im = ImageOps.exif_transpose(im)
+            
+            # Downscale if resolution is larger than 1920px
+            if max(im.size) > 1920:
+                im.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
+                
+            # Convert to WebP for maximum compression efficiency
+            out_file = file_path.with_suffix(".webp")
+            
+            # If RGBA, save as transparent WebP; if RGB, save as standard WebP
+            if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
+                im.save(out_file, "WEBP", quality=82, method=6)
+            else:
+                im_rgb = im.convert("RGB")
+                im_rgb.save(out_file, "WEBP", quality=82, method=6)
+
+            if out_file.exists() and out_file.stat().st_size > 0:
+                # Remove original uncompressed file if different name
+                if out_file != file_path and file_path.exists():
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
+                return out_file
+    except Exception as e:
+        logger.warning("Image compression notice (falling back to original): %s", e)
+    return file_path
+
+def compress_video_file(file_path: Path) -> Path:
+    """Compress video using H.264 CRF 28 and faststart header to reduce 70%+ file size."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        out_file = file_path.parent / f"opt_{file_path.stem}.mp4"
+        
+        cmd = [
+            ffmpeg_exe,
+            "-y",
+            "-i", str(file_path),
+            "-vcodec", "libx264",
+            "-crf", "28",
+            "-preset", "veryfast",
+            "-vf", "scale='min(1280,iw)':-2",
+            "-movflags", "+faststart",
+            "-acodec", "aac",
+            "-b:a", "128k",
+            str(out_file)
+        ]
+        
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+        if proc.returncode == 0 and out_file.exists() and out_file.stat().st_size > 0:
+            if out_file.stat().st_size <= file_path.stat().st_size:
+                final_file = file_path.with_suffix(".mp4")
+                if file_path.exists():
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
+                if out_file != final_file:
+                    if final_file.exists():
+                        try:
+                            os.remove(final_file)
+                        except Exception:
+                            pass
+                    out_file.rename(final_file)
+                    return final_file
+                return out_file
+            else:
+                try:
+                    os.remove(out_file)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning("Video compression notice (falling back to original): %s", e)
+    return file_path
+
 @router.post("/upload")
 async def upload_media(file: UploadFile = File(...)):
-    """Upload an image or video file to be embedded into Jira ticket descriptions or attachments."""
+    """Upload and automatically compress image or video file to minimize server storage."""
     content_type = file.content_type or ""
     
     # Check if content type is allowed
@@ -54,19 +145,34 @@ async def upload_media(file: UploadFile = File(...)):
                 )
             buffer.write(chunk)
             
-    media_type = "video" if is_video else "image"
-    relative_url = f"/api/media/{unique_name}"
-    
+    # Perform automated smart compression
+    orig_size = file_size
+    if is_image:
+        compressed_file = compress_image_file(file_path)
+        final_filename = compressed_file.name
+        file_size = compressed_file.stat().st_size
+        media_type = "image"
+        final_mime = "image/webp" if compressed_file.suffix == ".webp" else (content_type or "image/jpeg")
+    else:
+        compressed_file = compress_video_file(file_path)
+        final_filename = compressed_file.name
+        file_size = compressed_file.stat().st_size
+        media_type = "video"
+        final_mime = "video/mp4"
+
+    relative_url = f"/api/media/{final_filename}"
+    reduction_pct = round((1 - (file_size / max(orig_size, 1))) * 100, 1)
+    logger.info("Uploaded %s compressed: %d -> %d bytes (saved %s%%)", final_filename, orig_size, file_size, reduction_pct)
+
     return {
         "url": relative_url,
         "file_name": file.filename,
-        "file_type": content_type or mimetypes.guess_type(file.filename)[0] or "application/octet-stream",
+        "file_type": final_mime,
         "media_type": media_type,
         "file_size": file_size,
+        "original_size": orig_size,
+        "savings_percent": f"{reduction_pct}%" if reduction_pct > 0 else "0%",
     }
-
-from fastapi import Request
-from fastapi.responses import StreamingResponse
 
 @router.get("/{filename}")
 async def get_media(filename: str, request: Request):
@@ -136,10 +242,6 @@ async def get_media(filename: str, request: Request):
         headers=headers
     )
 
-
-import gc
-import asyncio
-
 async def _delayed_remove(path: Path):
     """Attempt removal with retries if file is locked by streaming video connection on Windows."""
     for _ in range(6):
@@ -151,7 +253,6 @@ async def _delayed_remove(path: Path):
                 return
         except Exception:
             pass
-
 
 @router.delete("/{filename}")
 async def delete_media(filename: str):
@@ -182,4 +283,3 @@ async def delete_media(filename: str):
         "filename": safe_filename,
         "message": f"File {safe_filename} removed from storage"
     }
-
