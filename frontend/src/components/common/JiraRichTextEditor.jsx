@@ -248,6 +248,8 @@ export const JiraRichTextEditor = ({
             class: 'jira-ordered-list',
           },
         },
+        underline: false,
+        link: false,
       }),
       Underline,
       TextStyle,
