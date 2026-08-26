@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection, db_instance
 from app.core.security import get_password_hash
-from app.api import auth, projects, sprints, issues, comments, seed, import_export
+from app.api import auth, projects, sprints, issues, comments, seed, import_export, media
 from app.api import teams, conversations, notifications, guest_requests, organizations, file_transfers, search
 from app.api import migrate as migrate_api
 from app.api.websocket import manager, authenticate_ws_token
@@ -200,7 +200,8 @@ async def add_security_headers(request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "img-src 'self' data: https: blob:; "
+        "img-src 'self' data: http: https: blob:; "
+        "media-src 'self' data: http: https: blob:; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com data:; "
         "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"
@@ -223,6 +224,7 @@ app.include_router(file_transfers.router)
 app.include_router(seed.router)
 app.include_router(import_export.router)
 app.include_router(migrate_api.router)
+app.include_router(media.router)
 
 
 # =============================================
