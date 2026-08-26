@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useModal } from '../../context/ModalContext';
 import { issuesApi } from '../../api/issues';
 import { projectsApi } from '../../api/projects';
+import { JiraRichTextEditor } from '../common/JiraRichTextEditor';
 
 const ISSUE_TYPES = [
   { id: 'story', label: 'Story', icon: Bookmark, color: '#36B37E' },
@@ -235,18 +236,16 @@ export const CreateIssueModal = () => {
               />
             </div>
 
-            {/* Description */}
+            {/* Description Rich Text Editor */}
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>
                 Description
               </label>
-              <textarea
-                rows={4}
-                placeholder="Add context, acceptance criteria, or details..."
+              <JiraRichTextEditor
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="jira-input"
-                style={{ marginTop: '6px', backgroundColor: '#FFFFFF', resize: 'vertical' }}
+                onChange={(html) => setDescription(html)}
+                placeholder="Add context, acceptance criteria, or details..."
+                minHeight="120px"
               />
             </div>
 

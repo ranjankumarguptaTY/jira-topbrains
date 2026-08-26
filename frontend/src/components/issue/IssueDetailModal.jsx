@@ -25,6 +25,7 @@ import { IssueTypeBadge } from '../common/IssueTypeBadge';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { StatusBadge } from '../common/StatusBadge';
 import { Avatar } from '../common/Avatar';
+import { JiraRichTextEditor } from '../common/JiraRichTextEditor';
 
 const STATUS_OPTIONS = [
   { id: 'todo', label: 'TO DO' },
@@ -451,15 +452,13 @@ export const IssueDetailModal = () => {
               </div>
               {isEditingDesc ? (
                 <div>
-                  <textarea
-                    rows={5}
+                  <JiraRichTextEditor
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="jira-input"
-                    style={{ fontFamily: 'inherit', fontSize: '13px', lineHeight: '1.5' }}
+                    onChange={(html) => setDescription(html)}
                     placeholder="Add a detailed description, reproduction steps, or context..."
+                    minHeight="140px"
                   />
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                     <button
                       onClick={() => {
                         handleUpdateField({ description });
@@ -478,19 +477,28 @@ export const IssueDetailModal = () => {
                 <div
                   onClick={() => setIsEditingDesc(true)}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: '4px',
+                    padding: '12px 14px',
+                    borderRadius: '6px',
                     backgroundColor: '#FAFBFC',
-                    border: '1px solid #EBECF0',
+                    border: '1px solid #DFE1E6',
                     minHeight: '64px',
-                    fontSize: '13px',
+                    fontSize: '13.5px',
                     color: description ? '#172B4D' : '#7A869A',
                     cursor: 'pointer',
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: '1.5',
+                    lineHeight: '1.6',
+                    transition: 'border-color 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#C1C7D0')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#DFE1E6')}
                 >
-                  {description || 'Click to add a description...'}
+                  {description ? (
+                    <div
+                      dangerouslySetInnerHTML={{ __html: description }}
+                      style={{ margin: 0 }}
+                    />
+                  ) : (
+                    'Click to add a description with rich formatting, lists, and code...'
+                  )}
                 </div>
               )}
             </div>

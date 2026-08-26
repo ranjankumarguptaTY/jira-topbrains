@@ -36,6 +36,7 @@ import { Avatar } from '../common/Avatar';
 import { IssueTypeBadge } from '../common/IssueTypeBadge';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { StatusBadge } from '../common/StatusBadge';
+import { JiraRichTextEditor } from '../common/JiraRichTextEditor';
 
 const STATUS_OPTIONS = [
   { id: 'todo', label: 'TO DO', color: '#42526E', bg: '#DFE1E6' },
@@ -1028,18 +1029,16 @@ export const ListView = () => {
               />
             </div>
 
-            {/* Description */}
+            {/* Description Rich Text Editor */}
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
                 Description
               </label>
-              <textarea
-                rows={4}
-                placeholder="Provide detailed context, acceptance criteria, or steps to reproduce..."
+              <JiraRichTextEditor
                 value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                className="jira-input"
-                style={{ resize: 'vertical', minHeight: '100px', fontSize: '13px', lineHeight: 1.5, padding: '10px 14px' }}
+                onChange={(html) => setFormDescription(html)}
+                placeholder="Provide detailed context, acceptance criteria, or steps to reproduce..."
+                minHeight="140px"
               />
             </div>
 
