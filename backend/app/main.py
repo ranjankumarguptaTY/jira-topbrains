@@ -12,10 +12,10 @@ from app.api import migrate as migrate_api
 from app.api.websocket import manager, authenticate_ws_token
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("topbrains_jira_app")
+logger = logging.getLogger("sprintr_app")
 
 async def ensure_default_admin():
-    """Ensure TopBrains default master super_admin account exists in MongoDB"""
+    """Ensure Sprintr default master super_admin account exists in MongoDB"""
     try:
         db = db_instance.db
         admin_email = settings.SUPER_ADMIN_EMAIL.strip().lower()
@@ -28,22 +28,20 @@ async def ensure_default_admin():
                 "email": admin_email,
                 "name": admin_name,
                 "password_hash": get_password_hash(admin_password),
-                "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=TopBrainsMasterSuperAdmin",
+                "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=SprintrMasterSuperAdmin",
                 "role": "super_admin",
                 "is_active": True,
                 "created_at": datetime.now(timezone.utc)
             }
             await db.users.insert_one(admin_user)
-            logger.info("Default TopBrains Master Admin account created: %s (role: super_admin)", admin_email)
+            logger.info("Default Sprintr Master Admin account created: %s (role: super_admin)", admin_email)
         else:
-            # Transition: ensure existing admin has super_admin role
-            if existing.get("role") != "super_admin":
-                await db.users.update_one(
-                    {"_id": existing["_id"]},
-                    {"$set": {"role": "super_admin"}}
-                )
-                logger.info("Upgraded %s to super_admin role", admin_email)
-            logger.info("TopBrains Super Admin account verified: %s", admin_email)
+            # Transition: ensure existing admin has super_admin role and updated name
+            await db.users.update_one(
+                {"_id": existing["_id"]},
+                {"$set": {"role": "super_admin", "name": admin_name, "is_active": True}}
+            )
+            logger.info("Sprintr Super Admin account verified: %s", admin_email)
         
         # Ensure Super Admin has zero assigned org memberships so credentials/profile remain strictly platform-level
         admin_doc = await db.users.find_one({"email": admin_email})

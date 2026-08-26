@@ -1537,7 +1537,7 @@ const RegularMemberDashboard = () => {
   }, [currentUser, currentOrg]);
 
   const quickActions = [
-    { icon: MessageCircle, label: 'Slack & Jira Chat', path: '/chat', color: '#0052CC' },
+    { icon: MessageCircle, label: 'Team Chat & Discussions', path: '/chat', color: '#0052CC' },
     { icon: FolderKanban, label: 'Project Boards', path: '/projects', color: '#00875A' },
     { icon: ClipboardList, label: 'My Assigned Work', path: '/my-work', color: '#6554C0' },
   ];

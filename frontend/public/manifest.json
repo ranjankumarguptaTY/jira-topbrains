@@ -1,7 +1,7 @@
 {
-  "name": "TopBrains Collaboration Platform",
-  "short_name": "TopBrains",
-  "description": "Unified Chat + Project Management Platform",
+  "name": "Sprintr Agile Platform",
+  "short_name": "Sprintr",
+  "description": "Unified Sprint Management, Agile Boards & Collaboration",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1D2125",

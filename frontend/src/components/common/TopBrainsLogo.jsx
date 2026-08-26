@@ -45,7 +45,7 @@ export const TopBrainsLogo = ({ size = 28, showText = true, textColor = '#172B4D
               lineHeight: 1,
             }}
           >
-            TopBrains
+            Sprintr
           </span>
           <span
             style={{
@@ -58,7 +58,7 @@ export const TopBrainsLogo = ({ size = 28, showText = true, textColor = '#172B4D
               marginTop: '2px',
             }}
           >
-            Agile
+            Workspace
           </span>
         </div>
       )}

@@ -48,16 +48,16 @@ async def seed_jira_database(db=Depends(get_database)):
     # - 1 External Guest
     users_data = [
         {
-            "email": "admin@topbrains.com",
+            "email": "admin@sprintr.com",
             "name": "Super Admin",
             "password_hash": get_password_hash("adminpassword123"),
-            "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=TopBrainsMasterSuperAdmin",
+            "avatar_url": "https://api.dicebear.com/7.x/bottts/svg?seed=SprintrMasterSuperAdmin",
             "role": "super_admin",
             "is_active": True,
             "created_at": now - timedelta(days=30),
         },
         {
-            "email": "sarah.admin@topbrains.com",
+            "email": "sarah.admin@sprintr.com",
             "name": "Sarah Connor",
             "password_hash": get_password_hash("password123"),
             "avatar_url": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
@@ -75,7 +75,7 @@ async def seed_jira_database(db=Depends(get_database)):
             "created_at": now - timedelta(days=20),
         },
         {
-            "email": "alex.lead@topbrains.com",
+            "email": "alex.lead@sprintr.com",
             "name": "Alex Morgan",
             "password_hash": get_password_hash("password123"),
             "avatar_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
@@ -84,7 +84,7 @@ async def seed_jira_database(db=Depends(get_database)):
             "created_at": now - timedelta(days=15),
         },
         {
-            "email": "emily.lead@topbrains.com",
+            "email": "emily.lead@sprintr.com",
             "name": "Emily Watson",
             "password_hash": get_password_hash("password123"),
             "avatar_url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
@@ -93,7 +93,7 @@ async def seed_jira_database(db=Depends(get_database)):
             "created_at": now - timedelta(days=15),
         },
         {
-            "email": "dev.john@topbrains.com",
+            "email": "dev.john@sprintr.com",
             "name": "John Developer",
             "password_hash": get_password_hash("password123"),
             "avatar_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
@@ -102,7 +102,7 @@ async def seed_jira_database(db=Depends(get_database)):
             "created_at": now - timedelta(days=10),
         },
         {
-            "email": "dev.jane@topbrains.com",
+            "email": "dev.jane@sprintr.com",
             "name": "Jane Developer",
             "password_hash": get_password_hash("password123"),
             "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
@@ -111,7 +111,7 @@ async def seed_jira_database(db=Depends(get_database)):
             "created_at": now - timedelta(days=10),
         },
         {
-            "email": "qa.tony@topbrains.com",
+            "email": "qa.tony@sprintr.com",
             "name": "Tony Tester",
             "password_hash": get_password_hash("password123"),
             "avatar_url": "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80",
@@ -120,7 +120,7 @@ async def seed_jira_database(db=Depends(get_database)):
             "created_at": now - timedelta(days=8),
         },
         {
-            "email": "pm.rachel@topbrains.com",
+            "email": "pm.rachel@sprintr.com",
             "name": "Rachel Green",
             "password_hash": get_password_hash("password123"),
             "avatar_url": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
@@ -155,10 +155,10 @@ async def seed_jira_database(db=Depends(get_database)):
     ) = u_ids
 
     # =============================================
-    # 2. CREATE ORGANIZATION 1: "TopBrains Tech Org"
+    # 2. CREATE ORGANIZATION 1: "Sprintr Tech Org"
     # =============================================
     org1_doc = {
-        "name": "TopBrains Tech Org",
+        "name": "Sprintr Tech Org",
         "description": "Core software engineering, QA testing, and product development workspace",
         "logo_url": None,
         "created_by": super_admin_id,
@@ -714,7 +714,7 @@ async def seed_jira_database(db=Depends(get_database)):
         "requester_id": guest_id,
         "target_user_id": sarah_admin_id,
         "status": "pending",
-        "message": "Hello Sarah, I would like to inquire about joining the TopBrains engineering team.",
+        "message": "Hello Sarah, I would like to inquire about joining the Sprintr engineering team.",
         "created_at": now - timedelta(hours=12),
         "updated_at": now - timedelta(hours=12),
     })
@@ -723,7 +723,7 @@ async def seed_jira_database(db=Depends(get_database)):
         "status": "database_reset_and_seeded_successfully",
         "organizations": 2,
         "users": len(users_data),
-        "super_admin": "admin@topbrains.com",
-        "org1": "TopBrains Tech Org (Admin: sarah.admin@topbrains.com)",
+        "super_admin": "admin@sprintr.com",
+        "org1": "Sprintr Tech Org (Admin: sarah.admin@sprintr.com)",
         "org2": "Wayne Enterprises Global (Admin: bruce.wayne@waynecorp.com)",
     }

@@ -430,7 +430,7 @@ export const SummaryView = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#5E6C84' }}>
           <span>Spaces</span>
           <span>/</span>
-          <span style={{ fontWeight: 600, color: '#172B4D' }}>{currentOrg?.name || currentProject?.name || 'TopBrains'}</span>
+          <span style={{ fontWeight: 600, color: '#172B4D' }}>{currentOrg?.name || currentProject?.name || 'Sprintr Workspace'}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
           <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#172B4D', margin: 0 }}>

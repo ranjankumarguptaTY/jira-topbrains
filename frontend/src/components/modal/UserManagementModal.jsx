@@ -85,7 +85,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
         title: `Deactivate ${u.name}?`,
         message:
           `Are you sure you want to deactivate ${u.name} (${u.email})? ` +
-          `They will immediately lose access to log into TopBrains Jira. ` +
+          `They will immediately lose access to log into Sprintr. ` +
           `All their existing assigned tickets, comments, time tracking, and audit history will remain 100% preserved.`,
         confirmText: 'Deactivate Account',
         variant: 'danger',
@@ -105,7 +105,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
     } else {
       showConfirm({
         title: `Reactivate ${u.name}?`,
-        message: `Restore login access for ${u.name} (${u.email})? They will be able to log back into TopBrains Jira.`,
+        message: `Restore login access for ${u.name} (${u.email})? They will be able to log back into Sprintr.`,
         confirmText: 'Reactivate Account',
         variant: 'primary',
         onConfirm: async () => {
@@ -176,7 +176,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Shield size={20} color="#0052CC" />
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#172B4D', margin: 0 }}>
-              TopBrains Team & User Access Control
+              Sprintr Team & User Access Control
             </h2>
           </div>
           <button onClick={onClose} className="jira-btn jira-btn-ghost" style={{ padding: '6px' }}>

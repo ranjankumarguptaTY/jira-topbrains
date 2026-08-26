@@ -1386,7 +1386,7 @@ export const AdminPage = () => {
                         onClick={() => handleStatusToggle(u.id, u.is_active !== false)}
                         className="jira-btn jira-btn-secondary"
                         style={{ fontSize: '11px', padding: '4px 8px' }}
-                        disabled={u.id === currentUser?.id || u.email === 'admin@topbrains.com'}
+                        disabled={u.id === currentUser?.id || u.email === 'admin@sprintr.com' || u.email === 'admin@topbrains.com'}
                       >
                         {u.is_active !== false ? 'Deactivate' : 'Reactivate'}
                       </button>
@@ -2255,7 +2255,7 @@ export const AdminPage = () => {
                     className="jira-input"
                     value={newUserData.email}
                     onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
-                    placeholder="user@topbrains.com"
+                    placeholder="user@sprintr.com"
                     required
                   />
                 </div>

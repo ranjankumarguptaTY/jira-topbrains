@@ -2,7 +2,7 @@ import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "TopBrains Collaboration Platform"
+    PROJECT_NAME: str = "Sprintr Unified Agile Platform"
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "jira_clone_db")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "super-secret-jira-clone-jwt-key-change-in-production-123456789")
@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     FILE_TRANSFER_DIR: str = os.getenv("FILE_TRANSFER_DIR", "./data/file-transfers")
 
     # Super Admin Configuration (for auto-initialization on server deployment)
-    SUPER_ADMIN_EMAIL: str = os.getenv("SUPER_ADMIN_EMAIL", "admin@topbrains.com")
+    SUPER_ADMIN_EMAIL: str = os.getenv("SUPER_ADMIN_EMAIL", "admin@sprintr.com")
     SUPER_ADMIN_PASSWORD: str = os.getenv("SUPER_ADMIN_PASSWORD", "adminpassword123")
-    SUPER_ADMIN_NAME: str = os.getenv("SUPER_ADMIN_NAME", "TopBrains Super Admin")
+    SUPER_ADMIN_NAME: str = os.getenv("SUPER_ADMIN_NAME", "Sprintr Super Admin")
     AUTO_SEED: bool = os.getenv("AUTO_SEED", "false").lower() in ("true", "1", "yes")
 
     class Config:

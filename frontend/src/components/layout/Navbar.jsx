@@ -96,7 +96,7 @@ export const Navbar = () => {
   const handleLogout = () => {
     setIsUserMenuOpen(false);
     showConfirm({
-      title: 'Log out of TopBrains Jira?',
+      title: 'Log out of Sprintr?',
       message: 'You can log back in anytime with your credentials.',
       confirmText: 'Log out',
       variant: 'danger',
@@ -109,15 +109,15 @@ export const Navbar = () => {
 
   const handleSeedData = () => {
     showConfirm({
-      title: 'Reset & Seed TopBrains Jira Database?',
-      message: 'This will reset all data and create the Master Admin account (admin@topbrains.com / adminpassword123).',
+      title: 'Reset & Seed Sprintr Database?',
+      message: 'This will reset sample data and create the Master Admin account (admin@sprintr.com / adminpassword123).',
       confirmText: 'Reset & Seed',
       variant: 'danger',
       onConfirm: async () => {
         try {
           setIsSeeding(true);
           await projectsApi.seed();
-          showToast({ message: 'TopBrains Jira seeded successfully!', type: 'success' });
+          showToast({ message: 'Sprintr seeded successfully!', type: 'success' });
           window.location.reload();
         } catch (err) {
           showToast({ message: 'Failed to seed database: ' + err.message, type: 'error' });

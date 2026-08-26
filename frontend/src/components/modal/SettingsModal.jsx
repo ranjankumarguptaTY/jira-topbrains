@@ -86,14 +86,14 @@ export const SettingsModal = ({ isOpen, onClose }) => {
 
   const handleSeedDatabase = () => {
     showConfirm({
-      title: 'Reset & Seed TopBrains Jira Database?',
-      message: 'This will reset all data and create the Master Admin account (admin@topbrains.com / adminpassword123).',
+      title: 'Reset & Seed Sprintr Database?',
+      message: 'This will reset sample data and create the Master Admin account (admin@sprintr.com / adminpassword123).',
       confirmText: 'Reset & Seed',
       variant: 'danger',
       onConfirm: async () => {
         try {
           await projectsApi.seed();
-          showToast({ message: 'TopBrains Jira seeded successfully!', type: 'success' });
+          showToast({ message: 'Sprintr seeded successfully!', type: 'success' });
           window.location.reload();
         } catch (err) {
           showToast({ message: 'Failed to seed database: ' + err.message, type: 'error' });

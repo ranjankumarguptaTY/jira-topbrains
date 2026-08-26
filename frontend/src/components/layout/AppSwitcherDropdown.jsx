@@ -13,11 +13,11 @@ import {
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 
-const TOPBRAINS_APPS = [
+const SPRINTR_APPS = [
   {
     id: 'jira',
-    name: 'TopBrains Jira',
-    description: 'Agile project management & issue tracking',
+    name: 'Sprintr Agile',
+    description: 'Agile project management & sprint tracking',
     icon: FolderKanban,
     color: '#0052CC',
     bg: '#DEEBFF',
@@ -25,7 +25,7 @@ const TOPBRAINS_APPS = [
   },
   {
     id: 'confluence',
-    name: 'TopBrains Confluence',
+    name: 'Sprintr Docs',
     description: 'Team workspaces & documentation',
     icon: FileText,
     color: '#006644',
@@ -34,7 +34,7 @@ const TOPBRAINS_APPS = [
   },
   {
     id: 'bitbucket',
-    name: 'TopBrains Bitbucket',
+    name: 'Sprintr Code',
     description: 'Code repositories & CI/CD pipelines',
     icon: GitBranch,
     color: '#2684FF',
@@ -43,7 +43,7 @@ const TOPBRAINS_APPS = [
   },
   {
     id: 'compass',
-    name: 'TopBrains Compass',
+    name: 'Sprintr Architecture',
     description: 'Developer architecture & component catalog',
     icon: Compass,
     color: '#6554C0',
@@ -52,7 +52,7 @@ const TOPBRAINS_APPS = [
   },
   {
     id: 'servicedesk',
-    name: 'TopBrains Service Desk',
+    name: 'Sprintr Service Desk',
     description: 'Customer service & incident management',
     icon: LifeBuoy,
     color: '#FF7452',
@@ -61,7 +61,7 @@ const TOPBRAINS_APPS = [
   },
   {
     id: 'statuspage',
-    name: 'TopBrains Statuspage',
+    name: 'Sprintr Status',
     description: 'Real-time uptime & incident communication',
     icon: Activity,
     color: '#36B37E',
@@ -106,11 +106,11 @@ export const AppSwitcherDropdown = ({ isOpen, onClose }) => {
         }}
       >
         <Sparkles size={13} color="#0052CC" />
-        <span>TopBrains Cloud Platform</span>
+        <span>Sprintr Cloud Platform</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        {TOPBRAINS_APPS.map((app) => {
+        {SPRINTR_APPS.map((app) => {
           const Icon = app.icon;
           return (
             <div

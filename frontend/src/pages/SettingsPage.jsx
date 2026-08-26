@@ -176,7 +176,7 @@ const SettingsPage = () => {
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g. Acme Corp or TopBrains Tech"
+                  placeholder="e.g. Acme Corp or Sprintr Tech"
                 />
               </div>
               <div className="settings-form-group">

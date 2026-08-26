@@ -27,17 +27,17 @@ import "./AuthPage.css";
 const DEMO_ACCOUNTS = [
   {
     name: "Super Admin",
-    email: "admin@topbrains.com",
+    email: "admin@sprintr.com",
     role: "Platform Super Administrator",
     avatar:
-      "https://api.dicebear.com/7.x/bottts/svg?seed=TopBrainsMasterSuperAdmin",
+      "https://api.dicebear.com/7.x/bottts/svg?seed=SprintrMasterSuperAdmin",
     badgeColor: "#6554C0",
     isAdmin: true,
   },
   {
     name: "Sarah Connor",
-    email: "sarah.admin@topbrains.com",
-    role: "Org Admin (TopBrains Tech Org)",
+    email: "sarah.admin@sprintr.com",
+    role: "Org Admin (Sprintr Tech Org)",
     avatar:
       "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
     badgeColor: "#DE350B",
@@ -52,7 +52,7 @@ const DEMO_ACCOUNTS = [
   },
   {
     name: "Alex Morgan",
-    email: "alex.lead@topbrains.com",
+    email: "alex.lead@sprintr.com",
     role: "Team Lead (Core Engineering)",
     avatar:
       "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
@@ -60,7 +60,7 @@ const DEMO_ACCOUNTS = [
   },
   {
     name: "John Developer",
-    email: "dev.john@topbrains.com",
+    email: "dev.john@sprintr.com",
     role: "Software Engineer",
     avatar:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
@@ -68,7 +68,7 @@ const DEMO_ACCOUNTS = [
   },
   {
     name: "Tony Tester",
-    email: "qa.tony@topbrains.com",
+    email: "qa.tony@sprintr.com",
     role: "QA / Tester",
     avatar:
       "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80",
@@ -376,9 +376,9 @@ export const AuthPage = () => {
               /* Register Form */
               <form onSubmit={handleRegisterSubmit} className="auth-form-body">
                 <div className="auth-title-block">
-                  <h2 className="auth-title">Join TopBrains</h2>
+                  <h2 className="auth-title">Join Sprintr</h2>
                   <p className="auth-subtitle">
-                    Create your account to start direct messaging. Organization Admins will assign your organization and team roles.
+                    Create your account to start direct messaging and sprint tracking. Organization Admins will assign your organization and team roles.
                   </p>
                 </div>
 
@@ -410,7 +410,7 @@ export const AuthPage = () => {
                       <Radio size={16} className="auth-input-icon" />
                       <input
                         type="text"
-                        placeholder="e.g. Acme Corporation or TopBrains Tech"
+                        placeholder="e.g. Acme Corporation or Sprintr Tech"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
                         className="auth-input"
@@ -428,7 +428,7 @@ export const AuthPage = () => {
                       <Mail size={16} className="auth-input-icon" />
                       <input
                         type="email"
-                        placeholder="name@topbrains.com"
+                        placeholder="name@sprintr.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="auth-input"

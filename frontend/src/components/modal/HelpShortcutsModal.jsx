@@ -46,7 +46,7 @@ export const HelpShortcutsModal = ({ isOpen, onClose }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <HelpCircle size={20} color="#0052CC" />
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#172B4D', margin: 0 }}>
-              TopBrains Jira Help & Shortcuts
+              Sprintr Help & Shortcuts
             </h2>
           </div>
           <button onClick={onClose} className="jira-btn jira-btn-ghost" style={{ padding: '6px' }}>
@@ -122,7 +122,7 @@ export const HelpShortcutsModal = ({ isOpen, onClose }) => {
           {activeTab === 'shortcuts' && (
             <div>
               <div style={{ fontSize: '13px', color: '#5E6C84', marginBottom: '14px' }}>
-                Use these hotkeys anywhere in TopBrains Jira to accelerate your workflow:
+                Use these hotkeys anywhere in Sprintr to accelerate your workflow:
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
@@ -133,29 +133,32 @@ export const HelpShortcutsModal = ({ isOpen, onClose }) => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      borderRadius: '6px',
+                      padding: '8px 12px',
+                      borderRadius: '4px',
                       backgroundColor: '#FAFBFC',
                       border: '1px solid #DFE1E6',
                     }}
                   >
-                    <span style={{ fontSize: '13px', color: '#172B4D', fontWeight: 500 }}>{sc.desc}</span>
-                    <kbd
-                      style={{
-                        padding: '4px 10px',
-                        backgroundColor: '#FFFFFF',
-                        border: '1px solid #C1C7D0',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: '#172B4D',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                        minWidth: '28px',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {sc.key}
-                    </kbd>
+                    <span style={{ fontSize: '13px', color: '#172B4D' }}>{sc.desc}</span>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <kbd
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #C1C7D0',
+                          backgroundColor: '#EBECF0',
+                          color: '#172B4D',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {sc.key}
+                      </kbd>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -166,7 +169,7 @@ export const HelpShortcutsModal = ({ isOpen, onClose }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ backgroundColor: '#DEEBFF', padding: '14px', borderRadius: '6px', border: '1px solid #B3D4FF' }}>
                 <div style={{ fontSize: '14px', fontWeight: 700, color: '#0747A6', marginBottom: '4px' }}>
-                  🎯 Scrum vs Kanban in TopBrains Jira
+                  🎯 Scrum vs Kanban in Sprintr
                 </div>
                 <div style={{ fontSize: '12px', color: '#172B4D', lineHeight: '1.4' }}>
                   Use the <strong>Backlog</strong> to plan upcoming iterations into 1 to 4-week timeboxes (Sprints). When
@@ -197,7 +200,7 @@ export const HelpShortcutsModal = ({ isOpen, onClose }) => {
           {activeTab === 'api' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ fontSize: '13px', color: '#5E6C84' }}>
-                TopBrains Jira is powered by a high-performance Python FastAPI backend and Motor async MongoDB.
+                Sprintr is powered by a high-performance Python FastAPI backend and Motor async MongoDB.
               </div>
 
               <div

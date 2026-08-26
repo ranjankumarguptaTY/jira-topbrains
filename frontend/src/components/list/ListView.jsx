@@ -25,6 +25,7 @@ import {
   CheckSquare,
   AlertCircle,
   Zap,
+  ArrowLeft,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
@@ -93,6 +94,22 @@ export const ListView = () => {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
 
+  // View Mode: 'list' (default table view) | 'create' (full page create issue) | 'success' (creation success screen)
+  const [viewMode, setViewMode] = useState('list');
+  const [createdIssue, setCreatedIssue] = useState(null);
+
+  // Dedicated Full Page Create Issue Form State
+  const [formSummary, setFormSummary] = useState('');
+  const [formType, setFormType] = useState('story');
+  const [formDescription, setFormDescription] = useState('');
+  const [formPriority, setFormPriority] = useState('medium');
+  const [formStatus, setFormStatus] = useState('todo');
+  const [formAssigneeId, setFormAssigneeId] = useState('');
+  const [formSprintId, setFormSprintId] = useState('');
+  const [formStoryPoints, setFormStoryPoints] = useState('');
+  const [formDueDate, setFormDueDate] = useState('');
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+
   // Quick Inline Create Row State
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [quickSummary, setQuickSummary] = useState('');
@@ -107,6 +124,50 @@ export const ListView = () => {
   const [commentingIssueId, setCommentingIssueId] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  const resetCreateForm = () => {
+    setFormSummary('');
+    setFormType('story');
+    setFormDescription('');
+    setFormPriority('medium');
+    setFormStatus('todo');
+    setFormAssigneeId('');
+    setFormSprintId('');
+    setFormStoryPoints('');
+    setFormDueDate('');
+  };
+
+  const handleFullPageCreateSubmit = async (e) => {
+    e.preventDefault();
+    if (!formSummary.trim() || !currentProject) return;
+
+    try {
+      setIsSubmittingForm(true);
+      const payload = {
+        project_id: currentProject.id,
+        summary: formSummary.trim(),
+        type: formType,
+        description: formDescription.trim(),
+        priority: formPriority,
+        status: formStatus,
+        assignee_id: formAssigneeId || null,
+        sprint_id: formSprintId || null,
+        story_points: formStoryPoints ? parseFloat(formStoryPoints) : null,
+        due_date: formDueDate || null,
+      };
+
+      const newIssue = await issuesApi.create(payload);
+      setCreatedIssue(newIssue);
+      setViewMode('success');
+      resetCreateForm();
+      fetchIssues();
+      refreshBoard();
+    } catch (err) {
+      showToast({ message: err.response?.data?.detail || 'Failed to create issue: ' + err.message, type: 'error' });
+    } finally {
+      setIsSubmittingForm(false);
+    }
+  };
 
   // Load issues
   const fetchIssues = async () => {
@@ -794,6 +855,493 @@ export const ListView = () => {
     });
   };
 
+  // =========================================================================
+  // VIEW MODE A: DEDICATED FULL-PAGE CREATE ISSUE VIEW
+  // =========================================================================
+  if (viewMode === 'create') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          backgroundColor: '#FAFBFC',
+          minHeight: '100%',
+          padding: '28px 36px 120px 36px',
+          overflowY: 'auto',
+        }}
+      >
+        {/* Breadcrumb Header */}
+        <div style={{ maxWidth: '960px', width: '100%', margin: '0 auto 24px auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#5E6C84' }}>
+            <span>Projects</span>
+            <span>/</span>
+            <span>{currentProject?.name || 'Workspace'}</span>
+            <span>/</span>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              style={{ background: 'none', border: 'none', padding: 0, color: '#0052CC', cursor: 'pointer', fontWeight: 600 }}
+            >
+              List
+            </button>
+            <span>/</span>
+            <span style={{ fontWeight: 700, color: '#172B4D' }}>Create Issue</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px' }}>
+            <div>
+              <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#172B4D', margin: '0 0 4px 0' }}>
+                Create Issue
+              </h1>
+              <p style={{ fontSize: '13px', color: '#5E6C84', margin: 0 }}>
+                Fill out the work item specifications below to create a new ticket in <strong>{currentProject?.name}</strong>.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                resetCreateForm();
+                setViewMode('list');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #DFE1E6',
+                borderRadius: '4px',
+                color: '#42526E',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(9, 30, 66, 0.04)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F4F5F7';
+                e.currentTarget.style.color = '#172B4D';
+                e.currentTarget.style.borderColor = '#C1C7D0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                e.currentTarget.style.color = '#42526E';
+                e.currentTarget.style.borderColor = '#DFE1E6';
+              }}
+            >
+              <ArrowLeft size={15} color="#5E6C84" />
+              <span>Back to List</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Main Create Issue Form Card */}
+        <div
+          style={{
+            maxWidth: '960px',
+            width: '100%',
+            margin: '0 auto',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '8px',
+            border: '1px solid #DFE1E6',
+            boxShadow: '0 2px 8px rgba(9, 30, 66, 0.05)',
+            padding: '32px',
+          }}
+        >
+          <form onSubmit={handleFullPageCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            {/* Project & Issue Type Selectors */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Project <span style={{ color: '#FF5630' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={`${currentProject?.name} (${currentProject?.key})`}
+                  className="jira-input"
+                  style={{
+                    backgroundColor: '#F4F5F7',
+                    cursor: 'not-allowed',
+                    color: '#172B4D',
+                    fontWeight: 600,
+                    height: '38px',
+                    fontSize: '13px',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Issue Type <span style={{ color: '#FF5630' }}>*</span>
+                </label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {ISSUE_TYPES.map((t) => {
+                    const isSelected = formType === t.id;
+                    const Icon = t.Icon;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setFormType(t.id)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '0 12px',
+                          height: '38px',
+                          borderRadius: '4px',
+                          border: isSelected ? `2px solid ${t.color}` : '1px solid #DFE1E6',
+                          backgroundColor: isSelected ? t.bg : '#FFFFFF',
+                          color: isSelected ? t.color : '#172B4D',
+                          fontWeight: isSelected ? 700 : 500,
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Icon size={14} color={t.color} />
+                        <span>{t.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Summary / Title */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                Summary / Title <span style={{ color: '#FF5630' }}>*</span>
+              </label>
+              <input
+                autoFocus
+                type="text"
+                placeholder="What needs to be done? e.g. Implement user authentication..."
+                value={formSummary}
+                onChange={(e) => setFormSummary(e.target.value)}
+                className="jira-input"
+                style={{ fontSize: '14px', height: '40px', padding: '8px 14px' }}
+                required
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                Description
+              </label>
+              <textarea
+                rows={4}
+                placeholder="Provide detailed context, acceptance criteria, or steps to reproduce..."
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                className="jira-input"
+                style={{ resize: 'vertical', minHeight: '100px', fontSize: '13px', lineHeight: 1.5, padding: '10px 14px' }}
+              />
+            </div>
+
+            {/* Status, Priority, Story Points */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              {/* Status */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Initial Status
+                </label>
+                <select
+                  value={formStatus}
+                  onChange={(e) => setFormStatus(e.target.value)}
+                  className="jira-input"
+                  style={{ fontSize: '13px', height: '38px' }}
+                >
+                  <option value="todo">To Do</option>
+                  <option value="inprogress">In Progress</option>
+                  <option value="inreview">Ready for QA</option>
+                  <option value="done">Done / Completed</option>
+                </select>
+              </div>
+
+              {/* Priority */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Priority
+                </label>
+                <select
+                  value={formPriority}
+                  onChange={(e) => setFormPriority(e.target.value)}
+                  className="jira-input"
+                  style={{ fontSize: '13px', height: '38px' }}
+                >
+                  <option value="highest">Highest ⬆⬆</option>
+                  <option value="high">High ⬆</option>
+                  <option value="medium">Medium —</option>
+                  <option value="low">Low ⬇</option>
+                  <option value="lowest">Lowest ⬇⬇</option>
+                </select>
+              </div>
+
+              {/* Story Points */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Story Points
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  placeholder="e.g. 3, 5, 8"
+                  value={formStoryPoints}
+                  onChange={(e) => setFormStoryPoints(e.target.value)}
+                  className="jira-input"
+                  style={{ fontSize: '13px', height: '38px' }}
+                />
+              </div>
+            </div>
+
+            {/* Assignee, Sprint, Due Date */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              {/* Assignee */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Assignee
+                </label>
+                <select
+                  value={formAssigneeId}
+                  onChange={(e) => setFormAssigneeId(e.target.value)}
+                  className="jira-input"
+                  style={{ fontSize: '13px', height: '38px' }}
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sprint */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Sprint
+                </label>
+                <select
+                  value={formSprintId}
+                  onChange={(e) => setFormSprintId(e.target.value)}
+                  className="jira-input"
+                  style={{ fontSize: '13px', height: '38px' }}
+                >
+                  <option value="">Backlog (No Sprint)</option>
+                  {(sprints || []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.status.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Due Date */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#5E6C84', marginBottom: '6px' }}>
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={formDueDate}
+                  onChange={(e) => setFormDueDate(e.target.value)}
+                  className="jira-input"
+                  style={{ fontSize: '13px', height: '38px' }}
+                />
+              </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: '12px',
+                borderTop: '1px solid #EBECF0',
+                paddingTop: '20px',
+                marginTop: '10px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  resetCreateForm();
+                  setViewMode('list');
+                }}
+                className="jira-btn jira-btn-ghost"
+                style={{ padding: '8px 18px', fontSize: '13px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingForm || !formSummary.trim()}
+                className="jira-btn jira-btn-primary"
+                style={{ padding: '8px 26px', fontSize: '14px', fontWeight: 700 }}
+              >
+                {isSubmittingForm ? 'Creating Issue...' : 'Create Issue'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW MODE B: CREATION SUCCESS CONFIRMATION SCREEN
+  // =========================================================================
+  if (viewMode === 'success') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 1,
+          backgroundColor: '#FAFBFC',
+          minHeight: '100%',
+          padding: '40px 20px',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '560px',
+            width: '100%',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '12px',
+            border: '1px solid #DFE1E6',
+            boxShadow: '0 4px 20px rgba(9, 30, 66, 0.08)',
+            padding: '40px 32px',
+            textAlign: 'center',
+          }}
+        >
+          {/* Animated Success Badge */}
+          <div
+            style={{
+              width: '68px',
+              height: '68px',
+              borderRadius: '50%',
+              backgroundColor: '#E3FCEF',
+              border: '2px solid #36B37E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px auto',
+            }}
+          >
+            <Check size={36} color="#00875A" strokeWidth={3} />
+          </div>
+
+          <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#172B4D', marginBottom: '8px' }}>
+            Issue Created Successfully!
+          </h2>
+
+          <p style={{ fontSize: '14px', color: '#5E6C84', marginBottom: '24px', lineHeight: 1.5 }}>
+            Your work item has been created and synced with the project database.
+          </p>
+
+          {/* Created Issue Snapshot Card */}
+          {createdIssue && (
+            <div
+              style={{
+                backgroundColor: '#FAFBFC',
+                border: '1px solid #DFE1E6',
+                borderRadius: '8px',
+                padding: '16px 20px',
+                marginBottom: '28px',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IssueTypeBadge type={createdIssue.type} size={16} />
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0052CC' }}>
+                    {createdIssue.key}
+                  </span>
+                </div>
+                <StatusBadge status={createdIssue.status} size="sm" />
+              </div>
+
+              <div style={{ fontSize: '15px', fontWeight: 600, color: '#172B4D', marginBottom: '8px' }}>
+                {createdIssue.summary}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px', color: '#5E6C84' }}>
+                <div>Priority: <strong style={{ color: '#172B4D' }}>{createdIssue.priority?.toUpperCase()}</strong></div>
+                {createdIssue.story_points && <div>Points: <strong style={{ color: '#172B4D' }}>{createdIssue.story_points} pts</strong></div>}
+                {createdIssue.assignee && <div>Assignee: <strong style={{ color: '#172B4D' }}>{createdIssue.assignee.name}</strong></div>}
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('list');
+                fetchIssues();
+              }}
+              className="jira-btn jira-btn-primary"
+              style={{
+                padding: '12px 24px',
+                fontSize: '15px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              <span>Go to Home / Back to List</span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  resetCreateForm();
+                  setViewMode('create');
+                }}
+                className="jira-btn jira-btn-ghost"
+                style={{ fontSize: '13px', fontWeight: 600, color: '#0052CC' }}
+              >
+                + Create another issue
+              </button>
+
+              {createdIssue && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedIssueId(createdIssue.id);
+                    setViewMode('list');
+                  }}
+                  className="jira-btn jira-btn-ghost"
+                  style={{ fontSize: '13px', fontWeight: 600, color: '#5E6C84' }}
+                >
+                  View issue details
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW MODE C: STANDARD LIST TABLE VIEW
+  // =========================================================================
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, backgroundColor: '#FFFFFF', minHeight: '100%' }}>
       {/* 1. TOP HEADER & BREADCRUMB */}
@@ -819,7 +1367,7 @@ export const ListView = () => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => setViewMode('create')}
               className="jira-btn jira-btn-primary"
               style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
