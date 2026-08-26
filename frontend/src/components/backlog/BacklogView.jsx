@@ -161,17 +161,58 @@ export const BacklogView = () => {
           </h1>
         </div>
 
-        {isAdmin && (
+        <button
+          onClick={() => setIsCreateSprintOpen(true)}
+          className="jira-btn jira-btn-primary"
+          style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Plus size={16} />
+          <span>Create sprint</span>
+        </button>
+      </div>
+
+      {/* Empty Sprints Callout */}
+      {sprints.length === 0 && (
+        <div
+          style={{
+            padding: '16px 20px',
+            backgroundColor: '#FAFBFC',
+            border: '1px dashed #C1C7D0',
+            borderRadius: '6px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#172B4D', marginBottom: '2px' }}>
+              No active or upcoming sprints
+            </div>
+            <div style={{ fontSize: '12px', color: '#5E6C84' }}>
+              Create a sprint to organize, prioritize, and assign issues from the backlog to your team.
+            </div>
+          </div>
           <button
             onClick={() => setIsCreateSprintOpen(true)}
-            className="jira-btn jira-btn-primary"
-            style={{ fontSize: '13px' }}
+            className="jira-btn jira-btn-subtle"
+            style={{
+              fontSize: '13px',
+              backgroundColor: '#DEEBFF',
+              color: '#0052CC',
+              border: '1px solid #B3D4FF',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
           >
-            <Plus size={16} />
+            <Plus size={15} />
             <span>Create sprint</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <DragDropContext onDragEnd={onDragEnd}>
         {/* Sprints List */}

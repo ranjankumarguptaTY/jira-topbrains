@@ -847,6 +847,28 @@ export const IssueDetailModal = () => {
               </select>
             </div>
 
+            {/* Due Date */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>
+                Due Date
+              </label>
+              <input
+                type="date"
+                value={
+                  issue?.due_date
+                    ? new Date(issue.due_date).toISOString().split('T')[0]
+                    : ''
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const isoDate = val ? new Date(`${val}T12:00:00Z`).toISOString() : null;
+                  handleUpdateField({ due_date: isoDate });
+                }}
+                className="jira-input"
+                style={{ marginTop: '6px', backgroundColor: '#FFFFFF' }}
+              />
+            </div>
+
             {/* Story Points */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: 700, color: '#5E6C84', textTransform: 'uppercase' }}>

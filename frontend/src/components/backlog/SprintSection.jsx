@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
-import { Play, CheckCircle, Plus, ChevronDown, ChevronRight, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Play, CheckCircle, Plus, ChevronDown, ChevronRight, MoreHorizontal, Trash2, Edit3 } from 'lucide-react';
 import { BacklogIssueRow } from './BacklogIssueRow';
 import { useProject } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +13,7 @@ export const SprintSection = ({ sprint, issues }) => {
     currentProject,
     setIsStartSprintOpen,
     setIsCompleteSprintOpen,
+    setIsEditSprintOpen,
     setTargetSprint,
     loadSprints,
     refreshBoard,
@@ -181,45 +182,64 @@ export const SprintSection = ({ sprint, issues }) => {
             </span>
           </div>
 
-          {/* Start / Complete Action Button - Admin Only */}
-          {isAdmin && (
-            <>
-              {isActive ? (
-                <button
-                  onClick={() => {
-                    setTargetSprint(sprint);
-                    setIsCompleteSprintOpen(true);
-                  }}
-                  className="jira-btn jira-btn-subtle"
-                  style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#E3FCEF', color: '#006644' }}
-                >
-                  <CheckCircle size={14} color="#006644" />
-                  <span>Complete sprint</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setTargetSprint(sprint);
-                    setIsStartSprintOpen(true);
-                  }}
-                  className="jira-btn jira-btn-primary"
-                  style={{ fontSize: '12px', padding: '4px 10px' }}
-                >
-                  <Play size={13} fill="#FFFFFF" />
-                  <span>Start sprint</span>
-                </button>
-              )}
-
-              <button
-                onClick={handleDeleteSprint}
-                className="jira-btn-ghost"
-                title="Delete sprint"
-                style={{ padding: '4px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-              >
-                <Trash2 size={15} color="#FF5630" />
-              </button>
-            </>
+          {/* Start / Complete Action Button */}
+          {isActive ? (
+            <button
+              onClick={() => {
+                setTargetSprint(sprint);
+                setIsCompleteSprintOpen(true);
+              }}
+              className="jira-btn jira-btn-subtle"
+              style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#E3FCEF', color: '#006644' }}
+            >
+              <CheckCircle size={14} color="#006644" />
+              <span>Complete sprint</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setTargetSprint(sprint);
+                setIsStartSprintOpen(true);
+              }}
+              className="jira-btn jira-btn-primary"
+              style={{ fontSize: '12px', padding: '4px 10px' }}
+            >
+              <Play size={13} fill="#FFFFFF" />
+              <span>Start sprint</span>
+            </button>
           )}
+
+          <button
+            onClick={() => {
+              setTargetSprint(sprint);
+              setIsEditSprintOpen(true);
+            }}
+            className="jira-btn-ghost"
+            title="Edit sprint details"
+            style={{
+              padding: '4px 6px',
+              border: 'none',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '12px',
+              color: '#42526E',
+            }}
+          >
+            <Edit3 size={14} color="#5E6C84" />
+            <span>Edit</span>
+          </button>
+
+          <button
+            onClick={handleDeleteSprint}
+            className="jira-btn-ghost"
+            title="Delete sprint"
+            style={{ padding: '4px', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+          >
+            <Trash2 size={15} color="#FF5630" />
+          </button>
         </div>
       </div>
 

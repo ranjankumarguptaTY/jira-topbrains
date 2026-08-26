@@ -15,6 +15,9 @@ import {
   FolderPlus,
   Layers,
   Sparkles,
+  Globe,
+  Calendar,
+  TrendingUp,
 } from 'lucide-react';
 import { useProject } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
@@ -27,10 +30,13 @@ export const Sidebar = () => {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
   const navItems = [
-    { id: 'roadmap', label: 'Roadmap', icon: CalendarRange },
-    { id: 'board', label: 'Active Board', icon: Kanban },
+    { id: 'summary', label: 'Summary', icon: Globe },
+    { id: 'roadmap', label: 'Timeline', icon: CalendarRange },
     { id: 'backlog', label: 'Backlog & Sprints', icon: ListTodo },
-    { id: 'issues', label: 'All Issues', icon: Table },
+    { id: 'board', label: 'Active Board', icon: Kanban },
+    { id: 'list', label: 'List', icon: Table },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
+    { id: 'reports', label: 'Reports', icon: TrendingUp },
   ];
 
   return (

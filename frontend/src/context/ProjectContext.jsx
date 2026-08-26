@@ -24,6 +24,7 @@ export const ProjectProvider = ({ children }) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [isCreateSprintOpen, setIsCreateSprintOpen] = useState(false);
+  const [isEditSprintOpen, setIsEditSprintOpen] = useState(false);
   const [isStartSprintOpen, setIsStartSprintOpen] = useState(false);
   const [isCompleteSprintOpen, setIsCompleteSprintOpen] = useState(false);
   const [targetSprint, setTargetSprint] = useState(null);
@@ -145,6 +146,8 @@ export const ProjectProvider = ({ children }) => {
         setIsCreateProjectOpen,
         isCreateSprintOpen,
         setIsCreateSprintOpen,
+        isEditSprintOpen,
+        setIsEditSprintOpen,
         isStartSprintOpen,
         setIsStartSprintOpen,
         isCompleteSprintOpen,

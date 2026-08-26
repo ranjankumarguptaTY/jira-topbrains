@@ -5,10 +5,15 @@ import { Sidebar } from '../components/layout/Sidebar';
 import { KanbanBoard } from '../components/board/KanbanBoard';
 import { BacklogView } from '../components/backlog/BacklogView';
 import { RoadmapView } from '../components/roadmap/RoadmapView';
+import { ListView } from '../components/list/ListView';
+import { CalendarView } from '../components/calendar/CalendarView';
+import { ReportsView } from '../components/reports/ReportsView';
+import { SummaryView } from '../components/summary/SummaryView';
 import { IssuesTableView } from '../components/issue/IssuesTableView';
 import { IssueDetailModal } from '../components/issue/IssueDetailModal';
 import { CreateIssueModal } from '../components/modal/CreateIssueModal';
 import { CreateSprintModal } from '../components/modal/CreateSprintModal';
+import { EditSprintModal } from '../components/modal/EditSprintModal';
 import { StartSprintModal } from '../components/modal/StartSprintModal';
 import { CompleteSprintModal } from '../components/modal/CompleteSprintModal';
 import { CreateProjectModal } from '../components/modal/CreateProjectModal';
@@ -110,16 +115,20 @@ const ProjectContent = () => {
     <div style={{ display: 'flex', flex: 1, minHeight: 0, backgroundColor: '#FAFBFC' }}>
       <Sidebar />
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', minWidth: 0, backgroundColor: '#FAFBFC' }}>
+        {activeTab === 'summary' && <SummaryView />}
         {activeTab === 'board' && <KanbanBoard />}
         {activeTab === 'backlog' && <BacklogView />}
         {activeTab === 'roadmap' && <RoadmapView />}
-        {activeTab === 'issues' && <IssuesTableView />}
+        {(activeTab === 'list' || activeTab === 'issues') && <ListView />}
+        {activeTab === 'calendar' && <CalendarView />}
+        {activeTab === 'reports' && <ReportsView />}
       </main>
 
       {/* Modals */}
       <IssueDetailModal />
       <CreateIssueModal />
       <CreateSprintModal />
+      <EditSprintModal />
       <StartSprintModal />
       <CompleteSprintModal />
       <CreateProjectModal />
